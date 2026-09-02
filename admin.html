@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Covid Cup 2026 &middot; Commissioner</title>
+<style>
+:root{
+  --bg:#0a1830; --surface:#0f2038; --surface2:#122845; --surface3:#173058;
+  --line:#28405f; --text:#f0f3f8; --muted:#9fb0c9; --dim:#7288a6;
+  --accent:#c7a34d; --accent-dim:#3a3320; --danger:#c8102e; --ok:#3fae6b;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);padding-bottom:80px;}
+h1,h2,h3{margin:0 0 8px;}
+h1{font-size:20px;}
+h2{font-size:15px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;}
+p{color:var(--muted);margin:0 0 12px;font-size:14px;}
+header{padding:18px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);z-index:5;}
+main{max-width:760px;margin:0 auto;padding:16px;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.row > *{flex:1;min-width:120px;}
+label{display:block;font-size:12px;color:var(--dim);margin-bottom:4px;}
+input,select{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:9px 10px;font-size:14px;}
+input:focus,select:focus{outline:2px solid var(--accent);}
+button{cursor:pointer;font-size:14px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surface3);color:var(--text);padding:9px 14px;}
+button.primary{background:var(--accent);border-color:var(--accent);color:#241d08;font-weight:600;}
+button.danger{background:transparent;border-color:var(--danger);color:var(--danger);}
+button.link{background:none;border:none;color:var(--accent);padding:2px 4px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;}
+th{color:var(--dim);font-weight:500;}
+.hole-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;}
+.hole-cell{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;}
+.hole-cell label{margin:0;font-size:10px;}
+.hole-cell input{padding:4px;text-align:center;}
+.pill{display:inline-block;background:var(--surface3);border:1px solid var(--line);border-radius:999px;
+  padding:3px 10px;font-size:12px;margin:2px 4px 2px 0;}
+.tee-row,.player-row,.pairing-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.tee-row:last-child,.player-row:last-child,.pairing-row:last-child{border-bottom:none;}
+.grow{flex:1;min-width:100px;}
+.checklist{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.check-item{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--line);
+  border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;}
+.check-item.selected{border-color:var(--accent);background:var(--accent-dim);}
+.check-item input{width:auto;}
+.savebar{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);
+  padding:12px 16px;display:flex;justify-content:center;gap:12px;align-items:center;z-index:5;}
+.status{font-size:12px;color:var(--dim);}
+.status.ok{color:var(--ok);}
+.status.err{color:var(--danger);}
+#pinGate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:20;}
+#pinGate .box{width:280px;text-align:center;}
+#pinGate input{text-align:center;letter-spacing:.3em;font-size:18px;margin-bottom:10px;}
+.hidden{display:none !important;}
+.warn{background:#3a2410;border:1px solid #6b4a1c;color:#e8c98a;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:16px;}
+</style>
+</head>
+<body>
+
+<div id="pinGate">
+  <div class="box">
+    <h1>Covid Cup 2026</h1>
+    <p>Commissioner console &middot; enter PIN</p>
+    <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <button class="primary" id="pinSubmit" style="width:100%">Enter</button>
+    <p id="pinError" style="color:var(--danger);display:none;margin-top:10px;">Wrong PIN</p>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<header>
+  <h1>Covid Cup 2026 &middot; Commissioner</h1>
+  <span class="status" id="loadStatus">loading…</span>
+</header>
+<main>
+  <div id="configWarn" class="warn hidden">
+    Firebase isn't connected yet (placeholder config in firebase-config.js). You can still fill this out —
+    it'll save to your browser only until it's wired up, then nothing will be lost.
+  </div>
+
+  <div class="card">
+    <h2>Course</h2>
+    <div class="row">
+      <div><label>Course name</label><input id="courseName" placeholder="e.g. Harborside International"></div>
+      <div><label>Location</label><input id="courseLocation" placeholder="City, State"></div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Holes played</label>
+        <select id="holesCount"><option value="18">18</option><option value="9">9</option></select>
+      </div>
+    </div>
+    <label style="margin-top:8px;">Par &amp; stroke index per hole</label>
+    <div class="hole-grid" id="holeGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Tees</h2>
+    <div id="teeList"></div>
+    <button id="addTeeBtn" style="margin-top:8px;">+ Add tee</button>
+  </div>
+
+  <div class="card">
+    <h2>Roster</h2>
+    <div class="row">
+      <div class="grow"><label>Name</label><input id="playerName" placeholder="Full name"></div>
+      <div><label>Handicap index</label><input id="playerHcp" type="number" step="0.1" placeholder="e.g. 12.4"></div>
+      <div><label>Tee</label><select id="playerTee"></select></div>
+    </div>
+    <button id="addPlayerBtn" class="primary">+ Add player</button>
+    <div id="playerList" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Pairings</h2>
+    <p>Select exactly two unpaired players to make a twosome.</p>
+    <div class="checklist" id="unpairedList"></div>
+    <button id="makePairBtn">Create pairing</button>
+    <div id="pairingList" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Format</h2>
+    <div class="row">
+      <div>
+        <label>Scoring type</label>
+        <select id="scoringType">
+          <option value="net-best-ball">Net best ball</option>
+          <option value="shamble">Shamble</option>
+          <option value="scramble">Scramble</option>
+          <option value="stroke-net">Stroke play (net)</option>
+          <option value="stroke-gross">Stroke play (gross)</option>
+        </select>
+      </div>
+      <div>
+        <label>Handicap allowance (%)</label>
+        <input id="hcpAllowance" type="number" min="0" max="100" step="5" value="90">
+      </div>
+    </div>
+    <div class="row">
+      <div class="check-item" id="shotgunToggle" style="flex:none;">
+        <input type="checkbox" id="shotgunCheck"><label style="margin:0;" for="shotgunCheck">Shotgun start</label>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="savebar">
+  <span class="status" id="saveStatus"></span>
+  <button class="primary" id="saveBtn">Save all</button>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
+
+const ADMIN_PIN = "COVID26"; // change this, and tell the commissioner the new value
+
+const LS_KEY = "covidcup_admin_draft";
+const DB_PATH = "covidcup";
+
+let db = null;
+if (FIREBASE_CONFIGURED) {
+  const app = initializeApp(FIREBASE_CONFIG);
+  db = getDatabase(app);
+}
+
+const state = {
+  course: { name: "", location: "", holesCount: 18, holes: [], tees: [] },
+  roster: {},   // id -> {name, hcp, tee}
+  pairings: {}, // id -> {playerIds:[a,b], startHole, teeTime}
+  settings: { scoringType: "net-best-ball", hcpAllowance: 90, shotgun: false }
+};
+
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+function defaultHoles(count){
+  const holes = [];
+  for (let i = 1; i <= count; i++) holes.push({ number: i, par: 4, si: i });
+  return holes;
+}
+
+/* ---------- rendering ---------- */
+
+function renderHoleGrid(){
+  const grid = document.getElementById("holeGrid");
+  grid.innerHTML = state.course.holes.map(h => `
+    <div class="hole-cell">
+      <label>Hole ${h.number}</label>
+      <input type="number" min="3" max="6" value="${h.par}" data-hole="${h.number}" data-field="par">
+      <input type="number" min="1" max="${state.course.holes.length}" value="${h.si}" data-hole="${h.number}" data-field="si" style="margin-top:3px;">
+    </div>
+  `).join("");
+  grid.querySelectorAll("input").forEach(inp => inp.addEventListener("input", e => {
+    const h = state.course.holes.find(x => x.number === +e.target.dataset.hole);
+    h[e.target.dataset.field] = +e.target.value;
+  }));
+}
+
+function renderTees(){
+  const list = document.getElementById("teeList");
+  if (!state.course.tees.length){
+    list.innerHTML = `<p>No tees yet.</p>`;
+  } else {
+    list.innerHTML = state.course.tees.map((t, i) => `
+      <div class="tee-row" data-i="${i}">
+        <input class="grow" placeholder="Tee name (e.g. White)" value="${esc(t.name)}" data-field="name">
+        <input style="max-width:100px;" type="number" step="0.1" placeholder="Rating" value="${t.rating ?? ""}" data-field="rating">
+        <input style="max-width:100px;" type="number" placeholder="Slope" value="${t.slope ?? ""}" data-field="slope">
+        <button class="danger" data-remove="${i}">Remove</button>
+      </div>
+    `).join("");
+    list.querySelectorAll(".tee-row").forEach(row => {
+      const i = +row.dataset.i;
+      row.querySelectorAll("input").forEach(inp => inp.addEventListener("input", () => {
+        state.course.tees[i][inp.dataset.field] = inp.dataset.field === "name" ? inp.value : +inp.value;
+        renderPlayerTeeOptions();
+      }));
+    });
+    list.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+      state.course.tees.splice(+btn.dataset.remove, 1);
+      renderTees(); renderPlayerTeeOptions();
+    }));
+  }
+}
+
+function renderPlayerTeeOptions(){
+  const sel = document.getElementById("playerTee");
+  sel.innerHTML = state.course.tees.map(t => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join("")
+    || `<option value="">No tees defined yet</option>`;
+}
+
+function renderRoster(){
+  const list = document.getElementById("playerList");
+  const players = Object.entries(state.roster);
+  if (!players.length){ list.innerHTML = `<p>No players yet.</p>`; }
+  else {
+    list.innerHTML = `<table><tr><th>Name</th><th>Index</th><th>Tee</th><th></th></tr>` +
+      players.map(([id, p]) => `
+        <tr data-id="${id}">
+          <td>${esc(p.name)}</td><td>${p.hcp}</td><td>${esc(p.tee || "—")}</td>
+          <td><button class="link" data-del-player="${id}">Remove</button></td>
+        </tr>`).join("") + `</table>`;
+    list.querySelectorAll("[data-del-player]").forEach(btn => btn.addEventListener("click", () => {
+      const id = btn.dataset.delPlayer;
+      Object.keys(state.pairings).forEach(pid => {
+        if (state.pairings[pid].playerIds.includes(id)) delete state.pairings[pid];
+      });
+      delete state.roster[id];
+      renderRoster(); renderPairings();
+    }));
+  }
+  renderPairings();
+}
+
+function pairedPlayerIds(){
+  return new Set(Object.values(state.pairings).flatMap(p => p.playerIds));
+}
+
+const selectedForPairing = new Set();
+
+function renderPairings(){
+  const paired = pairedPlayerIds();
+  const unpaired = document.getElementById("unpairedList");
+  const entries = Object.entries(state.roster).filter(([id]) => !paired.has(id));
+  unpaired.innerHTML = entries.length ? entries.map(([id, p]) => `
+    <label class="check-item ${selectedForPairing.has(id) ? "selected" : ""}" data-id="${id}">
+      <input type="checkbox" ${selectedForPairing.has(id) ? "checked" : ""}>${esc(p.name)}
+    </label>
+  `).join("") : `<p>Everyone's paired up.</p>`;
+  unpaired.querySelectorAll(".check-item").forEach(el => el.addEventListener("click", e => {
+    e.preventDefault();
+    const id = el.dataset.id;
+    if (selectedForPairing.has(id)) selectedForPairing.delete(id);
+    else if (selectedForPairing.size < 2) selectedForPairing.add(id);
+    renderPairings();
+  }));
+
+  const list = document.getElementById("pairingList");
+  const pairs = Object.entries(state.pairings);
+  list.innerHTML = pairs.length ? pairs.map(([id, pr]) => {
+    const names = pr.playerIds.map(pid => state.roster[pid]?.name || "?").join(" / ");
+    return `
+      <div class="pairing-row" data-id="${id}">
+        <span class="grow">${esc(names)}</span>
+        <input class="grow" placeholder="${state.settings.shotgun ? "Starting hole" : "Tee time"}"
+          value="${esc(pr.start || "")}" data-field="start" style="max-width:140px;">
+        <button class="danger" data-del-pair="${id}">Remove</button>
+      </div>`;
+  }).join("") : `<p>No pairings yet.</p>`;
+  list.querySelectorAll(".pairing-row").forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector("[data-field='start']").addEventListener("input", e => {
+      state.pairings[id].start = e.target.value;
+    });
+  });
+  list.querySelectorAll("[data-del-pair]").forEach(btn => btn.addEventListener("click", () => {
+    delete state.pairings[btn.dataset.delPair];
+    renderPairings();
+  }));
+}
+
+function renderFormat(){
+  document.getElementById("scoringType").value = state.settings.scoringType;
+  document.getElementById("hcpAllowance").value = state.settings.hcpAllowance;
+  document.getElementById("shotgunCheck").checked = !!state.settings.shotgun;
+}
+
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- wiring ---------- */
+
+document.getElementById("holesCount").addEventListener("change", e => {
+  const count = +e.target.value;
+  state.course.holesCount = count;
+  const existing = new Map(state.course.holes.map(h => [h.number, h]));
+  state.course.holes = defaultHoles(count).map(h => existing.get(h.number) || h);
+  renderHoleGrid();
+});
+document.getElementById("courseName").addEventListener("input", e => state.course.name = e.target.value);
+document.getElementById("courseLocation").addEventListener("input", e => state.course.location = e.target.value);
+
+document.getElementById("addTeeBtn").addEventListener("click", () => {
+  state.course.tees.push({ name: "", rating: "", slope: "" });
+  renderTees(); renderPlayerTeeOptions();
+});
+
+document.getElementById("addPlayerBtn").addEventListener("click", () => {
+  const name = document.getElementById("playerName").value.trim();
+  const hcp = +document.getElementById("playerHcp").value;
+  const tee = document.getElementById("playerTee").value;
+  if (!name) return;
+  state.roster[uid()] = { name, hcp: isFinite(hcp) ? hcp : 0, tee };
+  document.getElementById("playerName").value = "";
+  document.getElementById("playerHcp").value = "";
+  renderRoster();
+});
+
+document.getElementById("makePairBtn").addEventListener("click", () => {
+  if (selectedForPairing.size !== 2) return;
+  state.pairings[uid()] = { playerIds: [...selectedForPairing], start: "" };
+  selectedForPairing.clear();
+  renderPairings();
+});
+
+document.getElementById("scoringType").addEventListener("change", e => state.settings.scoringType = e.target.value);
+document.getElementById("hcpAllowance").addEventListener("input", e => state.settings.hcpAllowance = +e.target.value);
+document.getElementById("shotgunCheck").addEventListener("change", e => {
+  state.settings.shotgun = e.target.checked;
+  renderPairings();
+});
+
+/* ---------- persistence ---------- */
+
+function setStatus(msg, cls){
+  const el = document.getElementById("saveStatus");
+  el.textContent = msg; el.className = "status" + (cls ? " " + cls : "");
+}
+
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  if (!db){ setStatus("Saved to this browser only — Firebase not connected yet.", ""); return; }
+  try {
+    setStatus("Saving…", "");
+    await set(ref(db, DB_PATH), state);
+    setStatus("Saved " + new Date().toLocaleTimeString(), "ok");
+  } catch (err) {
+    console.error(err);
+    setStatus("Save failed: " + err.message, "err");
+  }
+});
+
+async function loadAll(){
+  const loadStatus = document.getElementById("loadStatus");
+  let loaded = null;
+  if (db) {
+    try {
+      const snap = await get(ref(db, DB_PATH));
+      if (snap.exists()) loaded = snap.val();
+    } catch (err) { console.error(err); }
+  }
+  if (!loaded) {
+    try { loaded = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
+  }
+  if (loaded) Object.assign(state, loaded);
+  if (!state.course.holes.length) state.course.holes = defaultHoles(state.course.holesCount);
+
+  document.getElementById("courseName").value = state.course.name || "";
+  document.getElementById("courseLocation").value = state.course.location || "";
+  document.getElementById("holesCount").value = state.course.holesCount;
+  document.getElementById("configWarn").classList.toggle("hidden", FIREBASE_CONFIGURED);
+
+  renderHoleGrid(); renderTees(); renderPlayerTeeOptions(); renderRoster(); renderFormat();
+  loadStatus.textContent = db ? "synced" : "local only";
+}
+
+/* ---------- PIN gate ---------- */
+
+function tryPin(){
+  const val = document.getElementById("pinInput").value;
+  if (val === ADMIN_PIN) {
+    sessionStorage.setItem("covidcup_admin_ok", "1");
+    document.getElementById("pinGate").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    loadAll();
+  } else {
+    document.getElementById("pinError").style.display = "block";
+  }
+}
+document.getElementById("pinSubmit").addEventListener("click", tryPin);
+document.getElementById("pinInput").addEventListener("keydown", e => { if (e.key === "Enter") tryPin(); });
+
+if (sessionStorage.getItem("covidcup_admin_ok") === "1") {
+  document.getElementById("pinGate").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  loadAll();
+}
+</script>
+</body>
+</html>
