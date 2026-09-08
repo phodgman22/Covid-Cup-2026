@@ -81,6 +81,38 @@ if the app lives on past this outing.
    `${pairingId}|${hole}|${field}` (see `writeTimers` Map in index.html). If you touch
    `queueScoreWrite`, keep the per-field keying.
 
+## Database rules (added 2026-09-08, not yet deployed)
+
+`database.rules.json` (deployable via `firebase deploy --only database` if you have the
+Firebase CLI, or paste its contents into Firebase console → Realtime Database → Rules)
+replaces the wide-open test-mode default before it auto-expires. Andrew confirmed the
+database was readable/writable with no auth at all as of this writing — proved it with a
+plain `curl` against the REST endpoint, no login required.
+
+What it does, and — just as important — what it deliberately doesn't:
+
+- Blocks any read/write outside `/covidcup` and `/covidcup_scores` (nothing else is granted
+  anywhere, so a stray write to the database root or an unrelated path is refused).
+- `/covidcup` write requires `newData.hasChild('course')` — cheap insurance against an
+  accidental full wipe (`set(..., null)`) or replacing it with garbage, without blocking
+  admin.html's normal "Save all" full-object `set()`. Deliberately does **not** require
+  `roster`/`pairings` to be present too — they start as `{}` in admin.html's default state,
+  and Firebase never persists empty objects as children, so requiring them would reject the
+  very first legitimate save before any players/pairings exist.
+- `/covidcup_scores` only grants `.write` at the per-hole level (`$pairingId/$hole`), matching
+  exactly how `queueScoreWrite()` writes today — one field at a time. Nobody can replace an
+  entire pairing's scores or the whole scores tree in one shot.
+- Each hole score is validated to be a number from 1–15. Adjust the cap if that's too tight
+  for your field.
+- **Still no real access control.** Without Firebase Auth, rules can't tell the commissioner
+  from a player or one player from another — anyone with the player link can still edit any
+  pairing's scores, and anyone can still overwrite course/roster/pairings, same as today. This
+  only stops accidental corruption, not a determined bad actor. Real separation needs auth —
+  tracked as future framework work, not something to bolt on before this event.
+- Not yet handled: a validated score field currently can't represent a picked-up ball — see
+  the gap below. Whatever sentinel that ends up using (a special value? a separate flag?)
+  will need a matching rules update.
+
 ## Known gaps (not bugs, just not built yet)
 
 - No support for a picked-up ball ("X" / max score). Every hole needs a real number.
