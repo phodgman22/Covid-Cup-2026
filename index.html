@@ -167,7 +167,8 @@ function roundContext(roundId){
 
   const groups = cfg.groups?.[roundId] || {};
   const teamPhs = FORMATS[round.format]?.teamHcp
-    ? teamHandicaps(round.format, groups, playerPhs, cfg.event?.teamHcpMode || "formula")
+    ? teamHandicaps(round.format, groups, playerPhs, cfg.event?.teamHcpMode || "formula",
+                    cfg.event?.teamWeights)
     : {};
 
   return { round, course, groups, playerPhs, teamPhs, holeCount: (course.holes || []).length };

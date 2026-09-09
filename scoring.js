@@ -63,26 +63,36 @@ export function playingHandicaps(roster, course, { allowancePct = 100, allowance
   return out;
 }
 
-// Standard scramble weightings by team size, best player first.
-const SCRAMBLE_WEIGHTS = {
-  2: [0.35, 0.15],
-  3: [0.20, 0.15, 0.10],
-  4: [0.25, 0.20, 0.15, 0.10]
+// Default weightings by team size, best player first. Percentages, so they read the
+// same way a commissioner says them out loud: "35 of the low, 15 of the high."
+// The console can override any of these per format — see event.teamWeights.
+export const DEFAULT_TEAM_WEIGHTS = {
+  "scramble":       { 2: [35, 15], 3: [20, 15, 10], 4: [25, 20, 15, 10] },
+  // Foursomes is 50% of the combined handicap, which is 50% of each player whatever
+  // the group size, so the same number repeats across the row.
+  "alternate-shot": { 2: [50, 50], 3: [50, 50, 50], 4: [50, 50, 50, 50] }
 };
 
-// One team's combined handicap, for the formats that play a single team ball.
-export function teamHandicapFormula(format, memberPhs){
+export const weightsFor = (format, size, table) =>
+  table?.[format]?.[size] || DEFAULT_TEAM_WEIGHTS[format]?.[size] || null;
+
+/**
+ * One team's combined handicap, for the formats that play a single team ball.
+ * Members are sorted by handicap first, so weights[0] is always the LOWEST handicap
+ * in the group, weights[1] the next, and so on up to the highest.
+ * `table` is the commissioner's override; omit it to use the defaults above.
+ */
+export function teamHandicapFormula(format, memberPhs, table){
   const phs = [...memberPhs].sort((a, b) => a - b);
   if (!phs.length) return 0;
 
-  if (format === "alternate-shot") return Math.round(0.5 * phs.reduce((a, b) => a + b, 0));
-
-  const weights = SCRAMBLE_WEIGHTS[phs.length];
-  if (!weights) {
-    // Fall back to an even split for group sizes the USGA table doesn't cover.
-    return Math.round(phs.reduce((a, b) => a + b, 0) / phs.length * 0.5);
+  const weights = weightsFor(format, phs.length, table);
+  if (!weights){
+    // No weighting configured for this group size — split evenly rather than
+    // silently handing the team a zero.
+    return Math.round(phs.reduce((a, b) => a + b, 0) / phs.length);
   }
-  return Math.round(phs.reduce((sum, ph, i) => sum + ph * weights[i], 0));
+  return Math.round(phs.reduce((sum, ph, i) => sum + ph * ((+weights[i] || 0) / 100), 0));
 }
 
 /**
@@ -90,11 +100,11 @@ export function teamHandicapFormula(format, memberPhs){
  * mode "off-lowest" drops every team by the lowest team's handicap, so the best
  * team plays off scratch — the team-level equivalent of the player option above.
  */
-export function teamHandicaps(format, groups, playerPhs, mode = "formula"){
+export function teamHandicaps(format, groups, playerPhs, mode = "formula", table){
   const out = {};
   Object.entries(groups || {}).forEach(([gid, g]) => {
     const phs = (g.playerIds || []).map(id => playerPhs[id] ?? 0);
-    out[gid] = teamHandicapFormula(format, phs);
+    out[gid] = teamHandicapFormula(format, phs, table);
   });
 
   if (mode === "off-lowest"){

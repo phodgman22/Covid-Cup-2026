@@ -123,6 +123,18 @@ th{color:var(--dim);font-weight:500;}
   </div>
 
   <div class="card">
+    <h2>Team handicap weightings</h2>
+    <p>For the formats that play one ball per team. Each row is a group size, and the
+      boxes run from the <b>lowest handicap in the group</b> to the highest &mdash; so
+      &ldquo;35 / 15&rdquo; means 35% of the low man plus 15% of the high man.</p>
+    <div id="weightEditor"></div>
+    <p class="hint">Only used by Scramble and Alternate shot. Every other format uses each
+      player's own handicap, so there's nothing to weight. Group sizes above four fall back
+      to an even split.</p>
+    <button id="resetWeightsBtn">Reset to standard</button>
+  </div>
+
+  <div class="card">
     <h2>Spreadsheet setup</h2>
     <p>Faster than typing 18 holes by hand. Download the template, fill it in Excel,
       and upload it back &mdash; courses, tees and players all come in at once.</p>
@@ -191,7 +203,8 @@ th{color:var(--dim);font-weight:500;}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
-import { FORMATS, coursePar, courseHandicap, playingHandicaps } from "./scoring.js";
+import { FORMATS, coursePar, courseHandicap, playingHandicaps,
+         DEFAULT_TEAM_WEIGHTS, weightsFor } from "./scoring.js";
 import { ACCEPTED_PINS } from "./admin-pins.js";
 
 
@@ -369,7 +382,7 @@ function renderRoster(){
   if (!players.length){ list.innerHTML = `<p>No players yet.</p>`; renderGroups(); return; }
 
   list.innerHTML = `<table>
-    <tr><th>Name</th><th>Index</th><th>Tee</th><th>Course hcp</th><th>Allow %</th><th>Code</th><th></th></tr>` +
+    <tr><th>Name</th><th>Index</th><th>Tee</th><th>Course hcp</th><th>Allow %</th><th>Email</th><th>Code</th><th></th></tr>` +
     players.map(([id, p]) => {
       const ch = displayCourseHandicap(p);
       return `<tr data-id="${id}">
@@ -379,8 +392,12 @@ function renderRoster(){
               `<option value="${esc(n)}" ${n === p.tee ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></td>
         <td data-ch>${ch == null ? "&mdash;" : ch}</td>
         <td><input type="number" min="0" max="100" placeholder="&mdash;" value="${p.allowancePct ?? ""}" data-pf="allowancePct" style="max-width:72px;"></td>
+        <td><input type="email" value="${esc(p.email || "")}" data-pf="email" placeholder="&mdash;" style="min-width:150px;"></td>
         <td><span class="code-pill">${esc(p.code || "")}</span></td>
-        <td><button class="link" data-del-player="${id}">Remove</button></td>
+        <td style="white-space:nowrap;">
+          <button class="link" data-mail="${id}" ${p.email ? "" : "disabled"}>Send code</button>
+          <button class="link" data-del-player="${id}">Remove</button>
+        </td>
       </tr>`;
     }).join("") + `</table>
     <p class="hint">Course handicap is calculated from the tee's rating and slope &mdash; it isn't typed in.
@@ -407,8 +424,32 @@ function renderRoster(){
         row.querySelector("[data-ch]").innerHTML = ch == null ? "&mdash;" : ch;
       }
       if (f === "name") renderGroups(); // group rows show player names
+      if (f === "email"){
+        const mailBtn = row.querySelector("[data-mail]");
+        if (mailBtn) mailBtn.disabled = !inp.value.trim();
+      }
     }));
   });
+
+  // A static page can't send mail itself — that needs a server and a mail service.
+  // This opens the commissioner's own mail client with everything filled in, so the
+  // message comes from him and costs nothing.
+  list.querySelectorAll("[data-mail]").forEach(btn => btn.addEventListener("click", () => {
+    const p = state.roster[btn.dataset.mail];
+    if (!p?.email) return;
+    const event = state.event.name || "Covid Cup 2026";
+    const link = location.href.replace(/admin\.html.*$/, "");
+    const body =
+      `${p.name},\n\n` +
+      `Here's your login for ${event}.\n\n` +
+      `Scoring app: ${link}\n` +
+      `Your code: ${p.code}\n\n` +
+      `Open the link, enter the code, and you're in. Any hole you play, ` +
+      `you or anyone in your group can enter the score.\n`;
+    location.href = `mailto:${encodeURIComponent(p.email)}` +
+      `?subject=${encodeURIComponent(`${event} — your player code`)}` +
+      `&body=${encodeURIComponent(body)}`;
+  }));
 
   list.querySelectorAll("[data-del-player]").forEach(btn => btn.addEventListener("click", () => {
     const id = btn.dataset.delPlayer;
@@ -579,6 +620,64 @@ function renderGroups(){
 
 /* ---------- event fields ---------- */
 
+/* ---------- team handicap weightings ---------- */
+
+const WEIGHT_FORMATS = Object.entries(FORMATS).filter(([, f]) => f.teamHcp).map(([key]) => key);
+const WEIGHT_SIZES = [2, 3, 4];
+const RANK_LABELS = ["Lowest", "2nd", "3rd", "Highest"];
+
+// The label depends on group size — in a twosome the second man IS the highest.
+function rankLabel(i, size){
+  if (i === size - 1) return "Highest";
+  return RANK_LABELS[i] || `#${i + 1}`;
+}
+
+function renderWeights(){
+  const wrap = document.getElementById("weightEditor");
+  wrap.innerHTML = WEIGHT_FORMATS.map(fmt => `
+    <div class="sub-card" data-wfmt="${fmt}">
+      <h3>${esc(FORMATS[fmt].label)}</h3>
+      ${WEIGHT_SIZES.map(size => {
+        const w = weightsFor(fmt, size, state.event.teamWeights) || [];
+        const total = w.reduce((a, b) => a + (+b || 0), 0);
+        return `<div class="row" data-wsize="${size}" style="align-items:flex-end;">
+          <div style="flex:0 0 96px;min-width:0;"><label>Group of</label>
+            <div style="padding:9px 0;font-size:15px;">${size}</div></div>
+          ${Array.from({ length: size }, (_, i) => `
+            <div style="flex:0 0 92px;min-width:0;">
+              <label>${rankLabel(i, size)}</label>
+              <input type="number" min="0" max="200" step="5" value="${w[i] ?? 0}" data-wi="${i}">
+            </div>`).join("")}
+          <div style="flex:1;min-width:80px;">
+            <span class="hint" style="margin:0;">totals ${total}%</span>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`).join("");
+
+  wrap.querySelectorAll("[data-wfmt]").forEach(box => {
+    const fmt = box.dataset.wfmt;
+    box.querySelectorAll("[data-wsize]").forEach(row => {
+      const size = +row.dataset.wsize;
+      row.querySelectorAll("[data-wi]").forEach(inp => inp.addEventListener("input", () => {
+        state.event.teamWeights = state.event.teamWeights || {};
+        state.event.teamWeights[fmt] = state.event.teamWeights[fmt] || {};
+        const current = [...(weightsFor(fmt, size, state.event.teamWeights) || Array(size).fill(0))];
+        current[+inp.dataset.wi] = +inp.value;
+        state.event.teamWeights[fmt][size] = current;
+        // Update just this row's total; re-rendering would throw focus out of the box.
+        const total = current.reduce((a, b) => a + (+b || 0), 0);
+        row.querySelector(".hint").textContent = `totals ${total}%`;
+      }));
+    });
+  });
+}
+
+document.getElementById("resetWeightsBtn").addEventListener("click", () => {
+  delete state.event.teamWeights;
+  renderWeights();
+});
+
 function renderEvent(){
   document.getElementById("eventName").value = state.event.name || "";
   document.getElementById("allowancePct").value = state.event.allowancePct ?? 100;
@@ -587,7 +686,7 @@ function renderEvent(){
 }
 
 function renderAll(){
-  renderEvent(); renderCourses(); renderPlayerTeeOptions();
+  renderEvent(); renderWeights(); renderCourses(); renderPlayerTeeOptions();
   renderRoster(); renderRounds(); renderGroups();
 }
 
@@ -640,7 +739,7 @@ const SHEET_PLAYERS = "Players";
 
 const COURSE_HEADERS = ["Course", "Location", "Holes (9 or 18)", "Tee", "Rating", "Slope", "Yards"];
 const HOLE_HEADERS   = ["Course", "Hole", "Par", "Stroke index"];
-const PLAYER_HEADERS = ["Player", "Handicap index", "Tee"];
+const PLAYER_HEADERS = ["Player", "Handicap index", "Tee", "Email"];
 
 function setImportStatus(msg, cls){
   const el = document.getElementById("importStatus");
@@ -670,8 +769,8 @@ function buildTemplateRows(){
   }
 
   const players = Object.values(state.roster);
-  if (players.length) players.forEach(p => playerRows.push([p.name || "", p.index ?? 0, p.tee || ""]));
-  else playerRows.push(["Example Player", 12.4, "White"]);
+  if (players.length) players.forEach(p => playerRows.push([p.name || "", p.index ?? 0, p.tee || "", p.email || ""]));
+  else playerRows.push(["Example Player", 12.4, "White", "player@example.com"]);
 
   return { courseRows, holeRows, playerRows };
 }
@@ -693,7 +792,7 @@ function downloadTemplate(){
   XLSX.utils.book_append_sheet(wb, wsHoles, SHEET_HOLES);
 
   const wsPlayers = XLSX.utils.aoa_to_sheet(playerRows);
-  wsPlayers["!cols"] = [{ wch: 24 }, { wch: 15 }, { wch: 12 }];
+  wsPlayers["!cols"] = [{ wch: 24 }, { wch: 15 }, { wch: 12 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, wsPlayers, SHEET_PLAYERS);
 
   XLSX.writeFile(wb, "covid-cup-setup.xlsx");
@@ -796,6 +895,7 @@ function importWorkbook(wb){
       name: clean,
       index: +pick(r, "Handicap index", "Index") || 0,
       tee: String(pick(r, "Tee") ?? "").trim(),
+      email: String(pick(r, "Email") ?? existing?.p.email ?? "").trim(),
       code: existing?.p.code || newCode(),
       ...(existing?.p.allowancePct !== undefined ? { allowancePct: existing.p.allowancePct } : {})
     };
