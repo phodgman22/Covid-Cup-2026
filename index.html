@@ -130,6 +130,7 @@ import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/fireb
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
          computeHoleResult, roundTotals, fmtToPar } from "./scoring.js";
+import { isAdminCode } from "./admin-pins.js";
 
 const DB_PATH = "covidcup";
 const SCORES_PATH = "covidcup_scores";
@@ -457,7 +458,13 @@ function trySavedLogin(){
 }
 
 document.getElementById("codeSubmit").addEventListener("click", () => {
-  const id = findByCode(document.getElementById("codeInput").value);
+  const entered = document.getElementById("codeInput").value;
+
+  // The two screens look almost identical, so a commissioner typing his console code
+  // here is a routine mistake rather than a wrong code. Send him where he meant to go.
+  if (isAdminCode(entered)){ location.href = "admin.html"; return; }
+
+  const id = findByCode(entered);
   if (!id){ document.getElementById("codeError").style.display = "block"; return; }
   meId = id;
   localStorage.setItem(ME_KEY, id);

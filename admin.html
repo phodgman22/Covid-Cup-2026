@@ -192,15 +192,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/fireba
 import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, courseHandicap, playingHandicaps } from "./scoring.js";
+import { ACCEPTED_PINS } from "./admin-pins.js";
 
-const ADMIN_PIN = "8E707C6A"; // change this, and tell the commissioner the new value
-
-// Short codes so Andrew and Pat can get in fast while building.
-// REMOVE BEFORE THE EVENT — these are guessable, and anyone who gets into this console
-// can rewrite the course, the roster and every pairing.
-const DEV_PINS = ["ADM1", "ADM2"];
-
-const ACCEPTED_PINS = [ADMIN_PIN, ...DEV_PINS];
 
 const LS_KEY = "covidcup_admin_draft";
 const DB_PATH = "covidcup";
