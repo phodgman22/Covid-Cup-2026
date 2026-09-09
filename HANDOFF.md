@@ -137,6 +137,37 @@ What it does:
 commissioner from a player, or one player from another. Anyone with the link can edit any
 group's scores. This stops accidents, not a determined person.
 
+## Spreadsheet setup
+
+admin.html can download an `.xlsx` template and read a filled one back — three flat
+sheets, one row per thing, so it stays obvious to someone editing it in Excel:
+
+- **Courses** — Course, Location, Holes (9 or 18), Tee, Rating, Slope, Yards.
+  One row per *tee*, with the course name repeated.
+- **Holes** — Course, Hole, Par, Stroke index.
+- **Players** — Player, Handicap index, Tee.
+
+The download includes whatever is already entered, so it doubles as an export. Uploading
+**replaces** courses and players wholesale.
+
+Things that are load-bearing here:
+
+- **Players are matched by name** (case- and punctuation-insensitive, trimmed), and a
+  match **keeps that player's existing login code** and per-player allowance. Without
+  this, re-uploading a corrected spreadsheet would silently invalidate everyone's login
+  the morning of the event. Same idea for courses, matched by name so rounds keep pointing
+  at the right one.
+- The name itself is taken **from the sheet**, so fixing a spelling there fixes it here.
+- A course listed in Courses but absent from Holes still gets a default card, so it's
+  scoreable rather than silently broken.
+- Players dropped from the sheet are removed from any groups they were in, and a round
+  whose course disappeared falls back to the first remaining course.
+- Header matching is deliberately loose — real files come back with different casing and
+  stray punctuation once a human has been in them.
+
+SheetJS is loaded from cdnjs as a plain (non-module) script, so it must stay *above* the
+module script that uses it.
+
 ## Player codes
 
 Each player gets a four-character code, generated in admin.html when he's added. Ambiguous
@@ -164,9 +195,6 @@ can read all of them out of the page. They solve "which player am I", nothing mo
 
 ## Known gaps (not bugs, just not built yet)
 
-- **No Excel import/export yet.** The plan is a downloadable template — course, tees,
-  rating/slope/distance, players and indexes — that the commissioner fills in and
-  re-uploads, rather than typing 18 holes by hand.
 - **No anonymous auth.** Locking rules to `auth != null` would keep out anyone not using
   the app, and costs nothing. Requires enabling Anonymous sign-in in the Firebase console
   **before** the tightened rules deploy, or the app breaks.
