@@ -1,0 +1,42 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "covidcup": {
+      ".read": true,
+      ".write": true,
+      ".validate": "newData.hasChild('event')",
+
+      "roster": {
+        "$playerId": {
+          ".validate": "newData.hasChild('name')"
+        }
+      },
+      "rounds": {
+        "$roundId": {
+          ".validate": "newData.hasChild('format')"
+        }
+      }
+    },
+
+    "covidcup_scores": {
+      ".read": true,
+
+      "$roundId": {
+        "$groupId": {
+          "$hole": {
+            ".write": true,
+            ".validate": "$hole.matches(/^[0-9]+$/)",
+
+            "$field": {
+              "v": { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 15)" },
+              "x": { ".validate": "!newData.exists() || newData.isBoolean()" },
+              "$other": { ".validate": false }
+            }
+          }
+        }
+      }
+    }
+  }
+}
