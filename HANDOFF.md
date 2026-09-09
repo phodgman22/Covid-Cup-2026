@@ -25,6 +25,11 @@ the thing to avoid.
   admin.html — it's plain text in public source, so it's a "keep casual players out"
   gate, not real security)
 
+> **Before the event: delete `DEV_PINS` in admin.html.** `ADM1` and `ADM2` are short
+> codes added so Andrew and Pat could get in quickly while building. Unlike the real PIN
+> they're guessable without viewing source, and this console can rewrite the course, the
+> roster and every pairing. They are fine now and a liability on tournament day.
+
 Deployed via GitHub Pages from `main`/root — any push to `main` goes live within a
 minute or two, no build step, no CI.
 

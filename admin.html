@@ -191,6 +191,13 @@ import { FORMATS, coursePar, courseHandicap, playingHandicaps } from "./scoring.
 
 const ADMIN_PIN = "8E707C6A"; // change this, and tell the commissioner the new value
 
+// Short codes so Andrew and Pat can get in fast while building.
+// REMOVE BEFORE THE EVENT — these are guessable, and anyone who gets into this console
+// can rewrite the course, the roster and every pairing.
+const DEV_PINS = ["ADM1", "ADM2"];
+
+const ACCEPTED_PINS = [ADMIN_PIN, ...DEV_PINS];
+
 const LS_KEY = "covidcup_admin_draft";
 const DB_PATH = "covidcup";
 
@@ -877,7 +884,7 @@ document.getElementById("reloadBtn").addEventListener("click", () => location.re
 
 function tryPin(){
   const val = document.getElementById("pinInput").value.trim().toUpperCase();
-  if (val === ADMIN_PIN){
+  if (ACCEPTED_PINS.includes(val)){
     document.getElementById("pinGate").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
     loadAll();
