@@ -89,6 +89,19 @@ table.scard td.tot{background:var(--surface2);font-weight:700;}
 .mark.bogey{border:1px solid var(--text);}
 .mark.double{border:1px solid var(--text);box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--text);}
 
+/* statistics */
+.highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;}
+.hl{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+.hl .cap{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;}
+.hl .who{font-size:15px;margin-top:3px;}
+.hl .val{font-size:20px;font-weight:700;color:var(--accent);}
+table.statgrid{border-collapse:collapse;font-size:13px;width:100%;white-space:nowrap;}
+table.statgrid th,table.statgrid td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:center;}
+table.statgrid th{color:var(--dim);font-weight:500;font-size:11px;}
+table.statgrid th.name,table.statgrid td.name{text-align:left;}
+table.statgrid td.rank{color:var(--dim);width:22px;}
+table.statgrid td.lead{font-weight:700;color:var(--accent);}
+
 .lb-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
 .lb-row:last-child{border-bottom:none;}
 .lb-rank{width:22px;color:var(--dim);font-size:13px;}
@@ -127,6 +140,7 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
   <button data-tab="home" class="active">Home</button>
   <button data-tab="score">Scorecard</button>
   <button data-tab="board">Leaderboard</button>
+  <button data-tab="stats">Stats</button>
 </nav>
 
 <main>
@@ -160,6 +174,21 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
       <div id="leaderboardList"><p class="empty">No scores posted yet.</p></div>
     </div>
   </section>
+
+  <section id="tab-stats" class="hidden">
+    <div class="card">
+      <h2>Statistics</h2>
+      <select id="statsRoundSelect"></select>
+      <div class="seg" id="statsBasis">
+        <button data-basis="net" class="active">Net</button>
+        <button data-basis="gross">Gross</button>
+      </div>
+      <div id="statHighlights" class="highlights"></div>
+      <select id="statSort"></select>
+      <div class="card-scroll"><div id="statTable"></div></div>
+      <p id="statNote" style="font-size:12px;color:var(--dim);margin-top:12px;"></p>
+    </div>
+  </section>
 </main>
 <footer id="versionFooter"></footer>
 </div>
@@ -169,7 +198,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/fireba
 import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
-         computeHoleResult, roundTotals, fmtToPar, strokesOnHole } from "./scoring.js";
+         computeHoleResult, roundTotals, fmtToPar, strokesOnHole,
+         collectPlayerHoles, summarisePlayer } from "./scoring.js";
 import { isAdminCode } from "./admin-pins.js";
 
 const DB_PATH = "covidcup";
@@ -614,16 +644,138 @@ function renderLeaderboard(){
     </div>`).join("") : `<p class="empty">No scores posted yet.</p>`;
 }
 
+/* ---------- statistics ---------- */
+
+let statsBasis = "net";   // "net" or "gross"
+let statsSort = "toPar";
+
+const STAT_COLUMNS = [
+  { key: "toPar",   label: "To par",  best: "low"  },
+  { key: "eagles",  label: "Eagles",  best: "high" },
+  { key: "birdies", label: "Birdies", best: "high" },
+  { key: "pars",    label: "Pars",    best: "high" },
+  { key: "bogeys",  label: "Bogeys",  best: "low"  },
+  { key: "doubles", label: "Dbl+",    best: "low"  },
+  { key: "holes",   label: "Holes",   best: "high" }
+];
+
+// Every player's records across one round, or the whole event.
+function gatherRecords(which){
+  const rounds = which === "__all" ? orderedRounds().map(([id]) => id) : [which];
+  const all = {};
+  rounds.forEach(roundId => {
+    const base = roundContext(roundId);
+    if (!base) return;
+    const { round, course, groups, playerPhs, teamPhs, holeCount } = base;
+    const recs = collectPlayerHoles(
+      round.format, course.holes || [], groups,
+      scores?.[roundId] || {}, playerPhs, teamPhs, holeCount
+    );
+    Object.entries(recs).forEach(([pid, list]) => {
+      (all[pid] = all[pid] || []).push(...list);
+    });
+  });
+  return all;
+}
+
+function renderStatsTab(){
+  fillRoundSelect(document.getElementById("statsRoundSelect"), { includeOverall: true });
+  const sortSel = document.getElementById("statSort");
+  if (!sortSel.options.length){
+    sortSel.innerHTML = STAT_COLUMNS.map(c =>
+      '<option value="' + c.key + '">Rank by ' + c.label + '</option>').join("");
+    sortSel.value = statsSort;
+  }
+  renderStats();
+}
+
+function renderStats(){
+  const which = document.getElementById("statsRoundSelect").value;
+  const records = gatherRecords(which);
+
+  const rows = Object.entries(records).map(([pid, list]) => {
+    const s = summarisePlayer(list);
+    return {
+      pid,
+      name: cfg.roster?.[pid]?.name || "?",
+      pickedUp: s.pickedUp,
+      holesPlayed: s.holesPlayed,
+      bucket: statsBasis === "gross" ? s.gross : s.net
+    };
+  }).filter(r => r.holesPlayed > 0);
+
+  const highlights = document.getElementById("statHighlights");
+  const table = document.getElementById("statTable");
+  const note = document.getElementById("statNote");
+
+  if (!rows.length){
+    highlights.innerHTML = "";
+    table.innerHTML = '<p class="empty">No scores posted yet.</p>';
+    note.textContent = "";
+    return;
+  }
+
+  // ---- highlight cards ----
+  const bestBy = (key, dir) => [...rows].sort((a, b) =>
+    dir === "low" ? a.bucket[key] - b.bucket[key] : b.bucket[key] - a.bucket[key])[0];
+
+  const lowScore = bestBy("toPar", "low");
+  const mostBirdies = bestBy("birdies", "high");
+  const mostOver = bestBy("doubles", "high");
+  const label = statsBasis === "gross" ? "Gross" : "Net";
+
+  const cards = [
+    { cap: "Best " + label.toLowerCase(), who: lowScore.name, val: fmtToPar(lowScore.bucket.toPar) },
+    { cap: "Most birdies", who: mostBirdies.name, val: mostBirdies.bucket.birdies },
+    { cap: "Most doubles+", who: mostOver.name, val: mostOver.bucket.doubles },
+    { cap: "Holes played", who: bestBy("holes", "high").name, val: bestBy("holes", "high").bucket.holes }
+  ];
+  highlights.innerHTML = cards.map(c =>
+    '<div class="hl"><div class="cap">' + esc(c.cap) + '</div>' +
+    '<div class="val">' + esc(String(c.val)) + '</div>' +
+    '<div class="who">' + esc(c.who) + "</div></div>").join("");
+
+  // ---- ranked table ----
+  const col = STAT_COLUMNS.find(c => c.key === statsSort) || STAT_COLUMNS[0];
+  rows.sort((a, b) => {
+    const d = col.best === "low"
+      ? a.bucket[col.key] - b.bucket[col.key]
+      : b.bucket[col.key] - a.bucket[col.key];
+    return d || a.bucket.toPar - b.bucket.toPar;
+  });
+
+  table.innerHTML =
+    '<table class="statgrid"><tr><th></th><th class="name">Player</th>' +
+    STAT_COLUMNS.map(c => "<th>" + c.label + "</th>").join("") + "</tr>" +
+    rows.map((r, i) =>
+      '<tr><td class="rank">' + (i + 1) + '</td><td class="name">' + esc(r.name) + "</td>" +
+      STAT_COLUMNS.map(c => {
+        const v = c.key === "toPar" ? fmtToPar(r.bucket.toPar) : r.bucket[c.key];
+        return "<td" + (c.key === statsSort ? ' class="lead"' : "") + ">" + v + "</td>";
+      }).join("") + "</tr>").join("") + "</table>";
+
+  const picked = rows.reduce((n, r) => n + r.pickedUp, 0);
+  note.innerHTML =
+    (statsBasis === "gross"
+      ? "Gross is what was actually holed out. "
+      : "Net takes off the shots each player gets on each hole. ") +
+    "Dbl+ counts <b>holes</b> at double bogey or worse, not strokes dropped. " +
+    "In scramble and alternate shot the pair share one score, so it counts for both partners." +
+    (picked ? " " + picked + " picked-up hole" + (picked === 1 ? " is" : "s are") +
+      " left out of the gross figures — there's no gross for a hole nobody finished — but counted in net as net double bogey." : "");
+}
+
 /* ---------- tabs ---------- */
 
 document.querySelectorAll("nav.tabs button").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    ["home", "score", "board"].forEach(t =>
+    ["home", "score", "board", "stats"].forEach(t =>
       document.getElementById("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab));
     if (btn.dataset.tab === "score") renderScoreTab();
     if (btn.dataset.tab === "board") renderLeaderboard();
+    if (btn.dataset.tab === "stats") renderStatsTab();
   });
 });
 
@@ -637,6 +789,14 @@ document.querySelectorAll(".seg button").forEach(btn => btn.addEventListener("cl
   renderScorecard();
 }));
 document.getElementById("boardRoundSelect").addEventListener("change", renderLeaderboard);
+document.getElementById("statsRoundSelect").addEventListener("change", renderStats);
+document.getElementById("statSort").addEventListener("change", e => { statsSort = e.target.value; renderStats(); });
+document.querySelectorAll("#statsBasis button").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll("#statsBasis button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  statsBasis = btn.dataset.basis;
+  renderStats();
+}));
 
 /* ---------- login ---------- */
 
@@ -689,6 +849,7 @@ function afterData(){
     renderHome();
     if (!document.getElementById("tab-score").classList.contains("hidden")) renderScorecard();
     if (!document.getElementById("tab-board").classList.contains("hidden")) renderLeaderboard();
+    if (!document.getElementById("tab-stats").classList.contains("hidden")) renderStatsTab();
   }
 }
 

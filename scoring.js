@@ -230,3 +230,84 @@ export function fmtToPar(toPar){
   if (toPar === 0) return "E";
   return toPar > 0 ? `+${toPar}` : `${toPar}`;
 }
+
+/* ---------- statistics ---------- */
+
+/**
+ * Every hole a player has a score on in one round, as
+ * { playerId: [{ hole, par, gross, net, pickedUp }] }.
+ *
+ * In scramble and alternate shot the pair share a single score, so that score is
+ * credited to BOTH partners — otherwise a man who played four team rounds would show
+ * no statistics at all.
+ */
+export function collectPlayerHoles(format, holes, groups, roundScores, playerPhs, teamPhs, holeCount = 18){
+  const out = {};
+  const teamEntry = FORMATS[format]?.entry === "team";
+
+  Object.entries(groups || {}).forEach(([gid, g]) => {
+    const memberIds = g.playerIds || [];
+    const groupScores = roundScores?.[gid] || {};
+
+    (holes || []).forEach(h => {
+      const entry = groupScores[h.number];
+      if (!entry) return;
+
+      memberIds.forEach(pid => {
+        const cell = teamEntry ? entry.team : entry[pid];
+        if (!cell) return;
+        // A team score is netted off the team handicap, an individual one off his own.
+        const ph = teamEntry ? (teamPhs?.[gid] ?? 0) : (playerPhs?.[pid] ?? 0);
+        const shots = strokesOnHole(ph, h.si, holeCount);
+
+        if (cell.x){
+          (out[pid] = out[pid] || []).push({
+            hole: h.number, par: h.par, gross: null,
+            net: netDoubleBogey(h.par, shots), pickedUp: true
+          });
+        } else if (cell.v != null){
+          (out[pid] = out[pid] || []).push({
+            hole: h.number, par: h.par, gross: cell.v,
+            net: cell.v - shots, pickedUp: false
+          });
+        }
+      });
+    });
+  });
+  return out;
+}
+
+const emptyBucket = () => ({ toPar: 0, holes: 0, eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubles: 0 });
+
+function addToBucket(bucket, strokes, par){
+  const d = strokes - par;
+  bucket.toPar += d;
+  bucket.holes += 1;
+  if (d <= -2) bucket.eagles += 1;
+  else if (d === -1) bucket.birdies += 1;
+  else if (d === 0) bucket.pars += 1;
+  else if (d === 1) bucket.bogeys += 1;
+  else bucket.doubles += 1;
+}
+
+/**
+ * Roll a player's hole records into gross and net summaries.
+ *
+ * A picked-up ball has no gross — the player never holed out — so it is left out of the
+ * gross figures entirely and counted separately. It does carry a net score (net double
+ * bogey), which is the same number the leaderboard already uses, so net totals stay
+ * complete. "Doubles" counts HOLES at double bogey or worse, not strokes dropped.
+ */
+export function summarisePlayer(records){
+  const gross = emptyBucket();
+  const net = emptyBucket();
+  let pickedUp = 0;
+
+  (records || []).forEach(r => {
+    if (r.pickedUp) pickedUp += 1;
+    else addToBucket(gross, r.gross, r.par);
+    addToBucket(net, r.net, r.par);
+  });
+
+  return { gross, net, pickedUp, holesPlayed: (records || []).length };
+}
