@@ -35,6 +35,12 @@ player's phone can keep both cards using "Scoring for" on the scorecard.
 > they're guessable without viewing source, and this console can rewrite the course, the
 > roster and every pairing. They are fine now and a liability on tournament day.
 
+Once a code is accepted the console stays unlocked for that browser tab (sessionStorage), so
+a refresh doesn't ask again. Typing a console code on the player screen unlocks it too before
+redirecting — previously it redirected straight into a second code prompt, which looked
+exactly like the code being refused. The code box is plain text on purpose: browsers autofill
+saved passwords into password fields, which mangles what gets typed.
+
 Deployed via GitHub Pages from `main`/root — any push to `main` goes live within a
 minute or two, no build step, no CI.
 
@@ -119,7 +125,8 @@ on every course. A player who plays different tees on different courses isn't su
   /courses  { <courseId>: { name, location, holesCount,
                             holes: [{number, par, si}], tees: [{name, rating, slope, yards}] } }
   /roster   { <playerId>: { name, index, tee, code, allowancePct? } }
-  /rounds   { <roundId>: { name, courseId, format, order } }
+  /rounds   { <roundId>: { name, courseId, format, order, maxScore, maxPlus?,
+                           ctpOn, ctpHoles, ldOn, ldHoles } }
   /groups   { <roundId>: { <groupId>: { playerIds: [...], start } } }
 
 /covidcup_scores
@@ -191,6 +198,22 @@ Things that are load-bearing here:
 
 SheetJS is loaded from cdnjs as a plain (non-module) script, so it must stay *above* the
 module script that uses it.
+
+## Scorecard
+
+On eggshell stock rather than the dark theme, so it reads clearly outdoors. The palette is
+redefined on the scorecard card, so everything inside flips together. **A hole can't be left
+until every player on it has a score or Picked up:** Next stays disabled and holes past the
+first blank one are locked in the strip. Going back to fix a hole is always allowed. Same rule
+as the Michigan app.
+
+## Closest to the pin and long drive
+
+Set per round in the console: tick the contest and type the hole(s) (`ctpOn`/`ctpHoles`,
+`ldOn`/`ldHoles`). Holes are free text like "2, 8", and only numbers that exist on the
+round's course are used. The player app lists them on Home, badges the hole, dots it on the
+strip, notes it on the hole before, and marks it on the full card. It does not record who won —
+like Michigan, that's still settled on the course.
 
 ## Leaderboard
 

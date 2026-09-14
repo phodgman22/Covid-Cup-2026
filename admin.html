@@ -80,9 +80,9 @@ th{color:var(--dim);font-weight:500;}
   <div class="box">
     <h1>Covid Cup 2026</h1>
     <p>Commissioner console &middot; enter PIN</p>
-    <input id="pinInput" type="password" placeholder="PIN" autocomplete="off">
+    <input id="pinInput" type="text" placeholder="Code" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false">
     <button class="primary" id="pinSubmit" style="width:100%">Enter</button>
-    <p id="pinError" style="color:var(--danger);display:none;margin-top:10px;">Wrong PIN</p>
+    <p id="pinError" style="color:var(--danger);display:none;margin-top:10px;">Code not recognised</p>
   </div>
 </div>
 
@@ -518,6 +518,22 @@ function renderRounds(){
           <input type="number" min="1" max="10" data-rf="maxPlus" value="${r.maxPlus ?? 4}">
         </div>` : ""}
       </div>
+      <div class="row" style="align-items:flex-end;">
+        <label class="check-item ${r.ctpOn ? "selected" : ""}" style="flex:0 0 auto;color:var(--text);">
+          <input type="checkbox" data-rf="ctpOn" ${r.ctpOn ? "checked" : ""}>Closest to the pin
+        </label>
+        ${r.ctpOn ? `<div style="flex:0 0 150px;min-width:0;">
+          <label>Hole(s)</label>
+          <input data-rf="ctpHoles" inputmode="numeric" placeholder="e.g. 8 or 2, 8" value="${esc(r.ctpHoles || "")}">
+        </div>` : ""}
+        <label class="check-item ${r.ldOn ? "selected" : ""}" style="flex:0 0 auto;color:var(--text);">
+          <input type="checkbox" data-rf="ldOn" ${r.ldOn ? "checked" : ""}>Long drive
+        </label>
+        ${r.ldOn ? `<div style="flex:0 0 150px;min-width:0;">
+          <label>Hole(s)</label>
+          <input data-rf="ldHoles" inputmode="numeric" placeholder="e.g. 6" value="${esc(r.ldHoles || "")}">
+        </div>` : ""}
+      </div>
       <p class="hint">${FORMATS[r.format]?.unit === "player"
         ? "Each player gets his own leaderboard line in this round."
         : "The group is scored as one unit in this round."}
@@ -529,8 +545,10 @@ function renderRounds(){
   wrap.querySelectorAll("[data-round]").forEach(box => {
     const id = box.dataset.round;
     box.querySelectorAll("[data-rf]").forEach(inp => inp.addEventListener("input", () => {
-      state.rounds[id][inp.dataset.rf] = inp.value;
-      if (inp.dataset.rf !== "name" && inp.dataset.rf !== "maxPlus") renderRounds();
+      const rf = inp.dataset.rf;
+      state.rounds[id][rf] = inp.type === "checkbox" ? inp.checked : inp.value;
+      // Free-typed fields keep focus; anything that changes the card's shape re-renders it.
+      if (!["name", "maxPlus", "ctpHoles", "ldHoles"].includes(rf)) renderRounds();
       renderGroupRoundSelect(); renderGroups();
     }));
     box.querySelector("[data-del-round]").addEventListener("click", () => {
@@ -1033,18 +1051,28 @@ document.getElementById("reloadBtn").addEventListener("click", () => location.re
 
 /* ---------- PIN gate ---------- */
 
+const ADMIN_SESSION_KEY = "covidcup_admin_ok";
+
+function unlock(){
+  // Remembered for this browser tab only, so a refresh — or arriving from the player
+  // screen, where the code was just typed — doesn't ask for it a second time.
+  try { sessionStorage.setItem(ADMIN_SESSION_KEY, "1"); } catch (e){}
+  document.getElementById("pinGate").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  loadAll();
+}
+
 function tryPin(){
   const val = document.getElementById("pinInput").value.trim().toUpperCase();
-  if (ACCEPTED_PINS.includes(val)){
-    document.getElementById("pinGate").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    loadAll();
-  } else {
-    document.getElementById("pinError").style.display = "block";
-  }
+  if (ACCEPTED_PINS.includes(val)) unlock();
+  else document.getElementById("pinError").style.display = "block";
 }
 document.getElementById("pinSubmit").addEventListener("click", tryPin);
 document.getElementById("pinInput").addEventListener("keydown", e => { if (e.key === "Enter") tryPin(); });
+
+let alreadyUnlocked = false;
+try { alreadyUnlocked = sessionStorage.getItem(ADMIN_SESSION_KEY) === "1"; } catch (e){}
+if (alreadyUnlocked) unlock();
 </script>
 </body>
 </html>

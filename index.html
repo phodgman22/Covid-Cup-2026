@@ -76,6 +76,31 @@ button.link{background:none;border:none;color:var(--accent);cursor:pointer;font-
 .nav-holes button:disabled{opacity:.35;cursor:default;}
 .nav-holes button.primary{background:var(--accent);border-color:var(--accent);color:#241d08;font-weight:600;}
 
+/* The scorecard sits on eggshell stock, like the Michigan app, so scores read clearly
+   outdoors. Redefining the palette on the card flips everything inside it at once. */
+#tab-score .card{
+  --surface:#fbf8f1; --surface2:#ffffff; --surface3:#f1ece0; --line:#d9d1bf;
+  --text:#1c2330; --muted:#556070; --dim:#7b8390; --accent:#8d6b1d; --accent-dim:#f1e5c2;
+  background:var(--surface); color:var(--text); border-color:#e3dac6;
+  box-shadow:0 10px 24px rgba(0,0,0,.28);
+}
+#tab-score .nav-holes button.primary{background:#1c2330;border-color:#1c2330;color:#fff;}
+#tab-score .nav-holes button:disabled{opacity:.3;}
+.strip button{position:relative;}
+.strip button.locked{opacity:.35;cursor:not-allowed;}
+.strip button.ctp::after,.strip button.ld::after{content:"";position:absolute;top:3px;right:3px;
+  width:6px;height:6px;border-radius:50%;}
+.strip button.ctp::after{background:#c0272d;}
+.strip button.ld::after{background:#2e6a3b;}
+.strip button.ctp.ld::after{background:linear-gradient(90deg,#c0272d 50%,#2e6a3b 50%);}
+.contest{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  border-radius:999px;padding:3px 9px;margin:6px 6px 2px 0;color:#fff;}
+.contest.ctp{background:#c0272d;}
+.contest.ld{background:#2e6a3b;}
+.contest.mini{font-size:9px;padding:1px 5px;margin:0 1px;}
+.gate-hint{font-size:12px;color:#9a3b1f;margin:12px 0 0;}
+.next-contest{font-size:12px;color:var(--muted);margin:10px 0 0;}
+
 /* full card */
 .card-scroll{overflow-x:auto;}
 table.scard{border-collapse:collapse;font-size:12px;white-space:nowrap;}
@@ -265,6 +290,15 @@ const courseFor = roundId => cfg.courses?.[cfg.rounds?.[roundId]?.courseId] || n
 
 /* ---------- handicap context for a round ---------- */
 
+// Contest holes are typed as free text ("2, 8"). Only numbers that exist on the round's
+// course are kept, so a typo can't flag a hole that isn't there.
+function contestHoles(on, text, holes){
+  if (!on) return [];
+  const valid = new Set((holes || []).map(h => h.number));
+  const picked = String(text || "").split(/[^0-9]+/).filter(Boolean).map(Number);
+  return [...new Set(picked)].filter(n => valid.has(n)).sort((a, b) => a - b);
+}
+
 function roundContext(roundId){
   const round = cfg.rounds?.[roundId];
   const course = courseFor(roundId);
@@ -282,7 +316,11 @@ function roundContext(roundId){
     : {};
 
   return { round, course, groups, playerPhs, teamPhs, holeCount: (course.holes || []).length,
-           maxRule: round.maxScore || DEFAULT_MAX_RULE, maxPlus: round.maxPlus };
+           maxRule: round.maxScore || DEFAULT_MAX_RULE, maxPlus: round.maxPlus,
+           contests: {
+             ctp: contestHoles(round.ctpOn, round.ctpHoles, course.holes),
+             ld: contestHoles(round.ldOn, round.ldHoles, course.holes)
+           } };
 }
 
 function myGroupIn(roundId){
@@ -320,6 +358,14 @@ function renderHome(){
     return `<div class="pairing">
       <b>${esc(r.name || `Round ${i + 1}`)}</b> &middot; ${esc(FORMATS[r.format]?.label || r.format)}
       <div class="when">${course ? esc(course.name) + (course.location ? " · " + esc(course.location) : "") + " · par " + coursePar(course.holes) : "No course set"}</div>
+      ${(() => {
+        const ctp = contestHoles(r.ctpOn, r.ctpHoles, course?.holes);
+        const ld = contestHoles(r.ldOn, r.ldHoles, course?.holes);
+        const parts = [];
+        if (ctp.length) parts.push("Closest to the pin: " + ctp.join(", "));
+        if (ld.length) parts.push("Long drive: " + ld.join(", "));
+        return parts.length ? `<div class="when">${parts.join(" · ")}</div>` : "";
+      })()}
     </div>`;
   }).join("") : `<p class="empty">Not set up yet.</p>`;
 
@@ -388,7 +434,7 @@ function currentCard(){
   const teamEntry = FORMATS[round.format]?.entry === "team";
 
   return {
-    roundId, gid, group, round, course, holeCount, maxRule, maxPlus,
+    roundId, gid, group, round, course, holeCount, maxRule, maxPlus, contests: base.contests,
     format: round.format,
     holes: course.holes || [],
     ctx: { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount, maxRule, maxPlus },
@@ -405,6 +451,21 @@ const holeComplete = (c, hole) => {
   const entry = cardScores(c)[hole] || {};
   return c.fields.every(f => entry[f.key] && (entry[f.key].x || entry[f.key].v != null));
 };
+
+// Index of the first hole still missing a score or pickup, or -1 once the card is full.
+const firstOpenIndex = c => c.holes.findIndex(h => !holeComplete(c, h.number));
+
+function contestLabel(c, holeNumber){
+  const names = [];
+  if (c.contests.ctp.includes(holeNumber)) names.push("Closest to the pin");
+  if (c.contests.ld.includes(holeNumber)) names.push("Long drive");
+  return names.join(" & ");
+}
+
+function contestBadges(c, holeNumber){
+  return (c.contests.ctp.includes(holeNumber) ? '<span class="contest ctp">Closest to the pin</span>' : "") +
+         (c.contests.ld.includes(holeNumber) ? '<span class="contest ld">Long drive</span>' : "");
+}
 
 // Standard scorecard notation, taken from gross against par.
 function markClass(gross, par){
@@ -444,10 +505,22 @@ function renderHoleView(body, c){
   const idx = c.holes.indexOf(hole);
   const t = roundTotals(c.format, c.holes, cardScores(c), c.ctx);
 
-  const strip = c.holes.map(h =>
-    '<button data-goto="' + h.number + '" class="' +
-    (h.number === currentHole ? "current " : "") +
-    (holeComplete(c, h.number) ? "done" : "") + '">' + h.number + '</button>').join("");
+  // Holes past the first one still missing a score are locked, so a group can't get three
+  // holes down the fairway before anyone notices a blank. Going back is always allowed.
+  const openIdx = firstOpenIndex(c);
+  const strip = c.holes.map((h, i) => {
+    const locked = openIdx !== -1 && i > openIdx;
+    const contest = contestLabel(c, h.number);
+    return '<button data-goto="' + h.number + '" class="' +
+      (h.number === currentHole ? "current " : "") +
+      (holeComplete(c, h.number) ? "done " : "") +
+      (locked ? "locked " : "") +
+      (c.contests.ctp.includes(h.number) ? "ctp " : "") +
+      (c.contests.ld.includes(h.number) ? "ld" : "") + '"' +
+      (locked ? " disabled" : "") +
+      (contest ? ' title="' + contest + '"' : "") +
+      ">" + h.number + "</button>";
+  }).join("");
 
   const entries = c.fields.map(f => {
     const cell = entry[f.key] || {};
@@ -480,15 +553,20 @@ function renderHoleView(body, c){
     '<div class="strip">' + strip + '</div>' +
     '<div class="hole-head"><span class="num">' + hole.number + '</span>' +
       '<span class="meta">Par ' + hole.par + ' &middot; stroke index ' + hole.si + '</span></div>' +
+    contestBadges(c, hole.number) +
     entries +
     '<div class="stats" style="margin-top:14px;">' +
       '<span>Thru <b>' + t.thru + '</b></span>' +
       '<span>Total <b>' + (t.thru ? fmtToPar(t.toPar) : "&mdash;") + '</b></span>' +
     '</div>' +
+    '<p class="gate-hint' + (holeComplete(c, hole.number) ? " hidden" : "") + '">Every player needs a score' +
+      (c.maxRule === "none" ? "" : " or Picked up") + ' before moving on.</p>' +
     '<div class="nav-holes">' +
       '<button data-prev' + (idx === 0 ? " disabled" : "") + '>&larr; ' + (idx === 0 ? "Start" : "Hole " + c.holes[idx - 1].number) + '</button>' +
-      '<button data-next class="primary"' + (idx === c.holes.length - 1 ? " disabled" : "") + '>' + (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + ' &rarr;</button>' +
+      '<button data-next class="primary"' + (idx === c.holes.length - 1 || !holeComplete(c, hole.number) ? " disabled" : "") + '>' + (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + ' &rarr;</button>' +
     '</div>' +
+    (c.holes[idx + 1] && contestLabel(c, c.holes[idx + 1].number)
+      ? '<p class="next-contest">Next hole: ' + contestLabel(c, c.holes[idx + 1].number) + '</p>' : "") +
     '<button class="link" id="switchPlayerBtn" style="margin-top:12px;">Not you? Switch player</button>';
 
   const inputs = [...body.querySelectorAll("input[data-score]")];
@@ -533,6 +611,7 @@ function renderHoleView(body, c){
     renderScorecard();
   });
   body.querySelector("[data-next]")?.addEventListener("click", () => {
+    if (!holeComplete(c, hole.number)) return;
     currentHole = c.holes[idx + 1]?.number ?? currentHole;
     renderScorecard();
   });
@@ -551,9 +630,18 @@ function refreshRunningTotal(c){
     stats[0].textContent = t.thru;
     stats[1].innerHTML = t.thru ? fmtToPar(t.toPar) : "&mdash;";
   }
-  document.querySelectorAll("#scorecardBody [data-goto]").forEach(btn => {
+  const openIdx = firstOpenIndex(c);
+  document.querySelectorAll("#scorecardBody [data-goto]").forEach((btn, i) => {
     btn.classList.toggle("done", holeComplete(c, +btn.dataset.goto));
+    const locked = openIdx !== -1 && i > openIdx;
+    btn.classList.toggle("locked", locked);
+    btn.disabled = locked;
   });
+  const complete = holeComplete(c, currentHole);
+  const idx = c.holes.findIndex(h => h.number === currentHole);
+  const next = document.querySelector("#scorecardBody [data-next]");
+  if (next) next.disabled = idx === c.holes.length - 1 || !complete;
+  document.querySelector("#scorecardBody .gate-hint")?.classList.toggle("hidden", complete);
 }
 
 function renderFullCard(body, c){
@@ -589,6 +677,12 @@ function renderFullCard(body, c){
     '<tr class="meta"><th class="name">Hole</th>' + hs.map(h => "<th>" + h.number + "</th>").join("") + "<th>" + label + "</th></tr>" +
     '<tr class="meta"><td class="name">Par</td>' + hs.map(h => "<td>" + h.par + "</td>").join("") + "<td>" + sumPar(hs) + "</td></tr>" +
     '<tr class="meta"><td class="name">Stroke index</td>' + hs.map(h => "<td>" + h.si + "</td>").join("") + "<td></td></tr>" +
+    (hs.some(h => contestLabel(c, h.number))
+      ? '<tr class="meta"><td class="name">Contest</td>' + hs.map(h =>
+          "<td>" + (c.contests.ctp.includes(h.number) ? '<span class="contest ctp mini">CTP</span>' : "") +
+          (c.contests.ld.includes(h.number) ? '<span class="contest ld mini">LD</span>' : "") + "</td>").join("") +
+        "<td></td></tr>"
+      : "") +
     c.fields.map(f =>
       '<tr><td class="name">' + esc(f.label) + "</td>" + playerCells(f, hs) +
       '<td class="tot">' + sumGross(f, hs) + "</td></tr>").join("");
@@ -1016,7 +1110,11 @@ document.getElementById("codeSubmit").addEventListener("click", () => {
 
   // The two screens look almost identical, so a commissioner typing his console code
   // here is a routine mistake rather than a wrong code. Send him where he meant to go.
-  if (isAdminCode(entered)){ location.href = "admin.html"; return; }
+  if (isAdminCode(entered)){
+    try { sessionStorage.setItem("covidcup_admin_ok", "1"); } catch (e){}
+    location.href = "admin.html";
+    return;
+  }
 
   const id = findByCode(entered);
   if (!id){ document.getElementById("codeError").style.display = "block"; return; }
