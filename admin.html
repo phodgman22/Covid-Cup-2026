@@ -212,7 +212,13 @@ table.grid .empty-row{color:var(--dim);text-align:center;padding:10px;}
   </div>
 
   <div class="card">
-    <h2>Players</h2>
+    <div class="row" style="align-items:center;justify-content:space-between;">
+      <h2 style="margin:0;">Players</h2>
+      <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;">
+        <span id="codesStatus" class="status"></span>
+        <button id="exportCodesBtn">Export codes</button>
+      </div>
+    </div>
     <div class="row">
       <div><label>Name</label><input id="playerName" placeholder="Player name"></div>
       <div><label>Handicap index</label><input id="playerIndex" type="number" step="0.1" placeholder="12.4"></div>
@@ -222,7 +228,9 @@ table.grid .empty-row{color:var(--dim);text-align:center;padding:10px;}
       </div>
     </div>
     <p class="hint">Tees are matched by name across courses, so use the same tee name
-      (e.g. &ldquo;White&rdquo;) on every course a player plays from.</p>
+      (e.g. &ldquo;White&rdquo;) on every course a player plays from. <b>Export codes</b> downloads
+      every player's name and login code side by side &mdash; handy for printing a sheet, or pasting
+      into a group text instead of sending codes one at a time.</p>
     <div id="playerList"></div>
   </div>
 
@@ -1260,6 +1268,36 @@ function downloadTemplate(){
   setImportStatus("Template downloaded.", "ok");
 }
 
+// A quick reference sheet for handing out codes without clicking "Send" once per player —
+// print it, paste it into a group text, whatever's fastest for the commissioner. Its own
+// status span, right next to the button — setImportStatus lives up in Spreadsheet setup,
+// which would put the confirmation off-screen from the button that triggered it.
+function setCodesStatus(msg, cls){
+  const el = document.getElementById("codesStatus");
+  el.textContent = msg;
+  el.className = "status" + (cls ? " " + cls : "");
+}
+function downloadCodes(){
+  if (typeof XLSX === "undefined"){
+    setCodesStatus("Spreadsheet library didn't load — check your connection.", "err");
+    return;
+  }
+  const players = Object.values(state.roster)
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  if (!players.length){
+    setCodesStatus("No players yet.", "err");
+    return;
+  }
+  const rows = [["Name", "Code", "Email"],
+    ...players.map(p => [p.name || "", p.code || "", p.email || ""])];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{ wch: 24 }, { wch: 10 }, { wch: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws, "Codes");
+  XLSX.writeFile(wb, "covid-cup-codes.xlsx");
+  setCodesStatus("Downloaded.", "ok");
+}
+
 // Header matching is loose — case and punctuation vary once a human has edited the file.
 const normalise = s => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -1395,6 +1433,7 @@ function importWorkbook(wb){
 }
 
 document.getElementById("downloadTemplateBtn").addEventListener("click", downloadTemplate);
+document.getElementById("exportCodesBtn").addEventListener("click", downloadCodes);
 
 document.getElementById("uploadInput").addEventListener("change", async e => {
   const file = e.target.files?.[0];

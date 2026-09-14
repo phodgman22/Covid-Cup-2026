@@ -377,7 +377,15 @@ card and totals, a "checked every score" tick box, and Submit. Submitting writes
 
 Each player gets a four-character code, generated in admin.html when he's added. Ambiguous
 characters (0/O, 1/I/L, etc.) are excluded so codes are easy to read off a screen. "Send code"
-on a roster row opens the commissioner's own mail app with the link and code filled in.
+on a roster row opens the commissioner's own mail app with the link and code filled in — one
+player at a time, and only if he has an email on file.
+
+**Export codes** (top of the Players card) downloads a small `.xlsx` — Name, Code, Email, one
+row per player, sorted by name — for everyone at once: print it, paste it into a group text,
+whatever's faster than clicking Send down the whole roster. `downloadCodes()` in admin.html,
+next to `downloadTemplate()`; same `XLSX.writeFile` mechanism, its own status span
+(`codesStatus`) rather than the Spreadsheet setup card's, since that one's far enough up the
+page to go unnoticed from a button all the way down in Players.
 
 **Codes are name tags, not passwords.** The whole roster ships to every phone, so anyone
 can read all of them out of the page. They solve "which player am I", nothing more.
