@@ -333,7 +333,7 @@ import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
          computeHoleResult, roundTotals, fmtToPar, strokesOnHole,
          collectPlayerHoles, summarisePlayer,
-         scoreCell, grossCap, DEFAULT_MAX_RULE, formatOf,
+         scoreCell, grossCap, DEFAULT_MAX_RULE, formatOf, formatFor,
          gameHandicaps, matchStatus, skinsForRound } from "./scoring.js";
 import { isAdminCode } from "./admin-pins.js";
 
@@ -1221,45 +1221,74 @@ function boardShell(sub, inner){
 const fmtPts = p => (Math.floor(p) || (p % 1 ? "" : "0")) + (p % 1 ? "½" : "");
 
 // The skins game runs across the WHOLE round, independent of stroke or match play — every
-// unit needs a score on a hole before it can be settled. Empty string once it's switched off
-// or nobody's posted a score yet.
+// unit needs a score on a hole before it can be settled. It also runs its own gross/net and
+// team/individual, independent of the round's own format — set in the console alongside the
+// opt-in checkbox. Empty string once it's switched off or nobody's posted a score yet.
 function skinsSectionHtml(base, roundId){
   if (!base.round.skinsOn) return "";
-  const unitIds = Object.keys(base.units);
+  const holes = base.course.holes || [];
+  const f = FORMATS[base.round.format];
+  const canIndividual = f?.entry === "player";
+  const skinsUnit = canIndividual ? (base.round.skinsUnit || "team") : "team";
+  const skinsGross = base.round.skinsGross ?? !!f?.gross;
+  const skinsFormat = skinsUnit === "individual" ? formatFor("individual", skinsGross) : formatFor(f?.family, skinsGross);
+
+  let unitIds, unitScores = {}, ctxs = {}, labelOf, openUnitOf = u => u;
+
+  if (skinsUnit === "individual"){
+    // Individual skins still needs each player's own entry, which is stored under his
+    // actual team's unit id (the round itself may not be individual format) — so map every
+    // rostered player back to that unit before pulling his cell out of it. The same mapping
+    // is what tapping a row should open — his real card, not a unit id that may not exist.
+    const groupOfPlayer = {};
+    Object.entries(base.units).forEach(([gid, g]) => (g.playerIds || []).forEach(pid => { groupOfPlayer[pid] = gid; }));
+    unitIds = Object.keys(groupOfPlayer);
+    unitIds.forEach(pid => {
+      const teamScores = scores?.[roundId]?.[groupOfPlayer[pid]] || {};
+      const perHole = {};
+      holes.forEach(h => { const cell = teamScores[h.number]?.[pid]; if (cell) perHole[h.number] = { [pid]: cell }; });
+      unitScores[pid] = perHole;
+      ctxs[pid] = { memberIds: [pid], playerPhs: base.playerPhs, teamPh: 0, holeCount: base.holeCount, maxRule: base.maxRule, maxPlus: base.maxPlus };
+    });
+    labelOf = pid => nameCell([pid], null);
+    openUnitOf = pid => groupOfPlayer[pid];
+  } else {
+    unitIds = Object.keys(base.units);
+    unitIds.forEach(u => {
+      unitScores[u] = scores?.[roundId]?.[u] || {};
+      ctxs[u] = { memberIds: base.units[u]?.playerIds || [], playerPhs: base.playerPhs,
+        teamPh: base.teamPhs[u] ?? 0, holeCount: base.holeCount, maxRule: base.maxRule, maxPlus: base.maxPlus };
+    });
+    labelOf = u => nameCell(base.units[u].playerIds, base.units[u].name);
+  }
   if (!unitIds.length) return "";
 
-  const byPlayer = FORMATS[base.round.format]?.unit === "player";
-  const ctxFor = u => ({
-    memberIds: base.units[u]?.playerIds || [], playerPhs: base.playerPhs,
-    teamPh: base.teamPhs[u] ?? 0, holeCount: base.holeCount, maxRule: base.maxRule, maxPlus: base.maxPlus
-  });
-  const unitScores = {}, ctxs = {};
-  unitIds.forEach(u => { unitScores[u] = scores?.[roundId]?.[u] || {}; ctxs[u] = ctxFor(u); });
-
-  const { perHole, totals, carry } = skinsForRound(base.round.format, base.course.holes || [], unitScores, ctxs);
+  const { perHole, totals, carry } = skinsForRound(skinsFormat, holes, unitScores, ctxs);
   if (!perHole.length) return "";
 
   const standing = unitIds.map(u => ({ u, skins: totals[u] || 0 }))
     .filter(r => r.skins > 0)
     .sort((a, b) => b.skins - a.skins);
 
-  const label = byPlayer ? "Player" : "Team";
+  const label = skinsUnit === "individual" ? "Player" : "Team";
   const rows = standing.length
     ? '<table class="lboard"><tr class="head"><th class="nm">' + label + '</th><th>Skins</th></tr>' +
         standing.map(r =>
-          '<tr class="lb-open" data-open-round="' + roundId + '" data-open-units="' + esc(r.u) + '">' +
-            nameCell(base.units[r.u].playerIds, base.units[r.u].name) +
+          '<tr class="lb-open" data-open-round="' + roundId + '" data-open-units="' + esc(openUnitOf(r.u)) + '">' +
+            labelOf(r.u) +
             '<td class="num tot under">' + r.skins + "</td></tr>").join("") +
       "</table>"
     : '<p class="board-empty">No skins won yet.</p>';
 
-  const nextHole = (base.course.holes || [])[perHole.length]?.number;
+  const nextHole = holes[perHole.length]?.number;
   const pending = carry > 0 && nextHole
     ? '<p class="board-tip">' + carry + " skin" + (carry > 1 ? "s" : "") +
         " riding into hole " + nextHole + " &mdash; waiting on the rest of the field.</p>"
     : "";
 
-  return '<div class="board-sub" style="margin-top:14px;">Skins</div>' + rows + pending;
+  return '<div class="board-sub" style="margin-top:14px;">Skins' +
+      (skinsGross ? " &middot; gross" : " &middot; net") + (skinsUnit === "individual" ? " &middot; individual" : "") +
+    "</div>" + rows + pending;
 }
 
 function renderRoundBoard(el, roundId){

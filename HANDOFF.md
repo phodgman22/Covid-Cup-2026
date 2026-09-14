@@ -292,6 +292,17 @@ player app shows a Skins table under the normal leaderboard (or under match play
 standings) once at least one skin's been won — nothing renders while every hole is still
 tied or the field hasn't finished one yet.
 
+**Skins runs its own gross/net and team/individual, independent of the round's own format**
+(`round.skinsGross`, `round.skinsUnit`) — a net best ball round can still play its skins
+gross, or as individuals instead of teams. Individual only shows as an option when the
+round's own format actually enters individual scores (`FORMATS[format].entry === "player"`
+— everything except scramble and alternate shot, which only ever have one team score to
+work with). When skins runs individual, `skinsSectionHtml()` in index.html maps each player
+back to his real team unit to find his stored score cell (storage is always keyed by the
+round's real unit, whether or not skins is scoring it that way) and to decide what a tap on
+his leaderboard row should open — there's no separate "skins unit" stored anywhere, it's
+derived fresh every render.
+
 ## Statistics
 
 Gross and net, per round or Overall, and they follow the formats in view: a gross-only view

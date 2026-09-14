@@ -632,10 +632,29 @@ function renderRounds(){
           <input type="checkbox" data-rf="skinsOn" ${r.skinsOn ? "checked" : ""}>Skins game
         </label>
       </div>
-      ${r.skinsOn ? `<p class="hint" style="margin-top:-4px;">Low score on a hole wins the skin; a tie carries it
-        (and everything riding on it) to the next hole. A hole only counts once every ${
-          FORMATS[r.format]?.unit === "player" ? "player" : "team"} in the round has a score on it,
-        so skins can lag behind the leaderboard until the whole field is through a hole.</p>` : ""}
+      ${r.skinsOn ? (() => {
+        // Skins runs its own gross/net and team/individual, independent of the round's own
+        // format — a net best ball round can still play its skins gross, or as individuals.
+        // Individual skins only makes sense where individual scores actually exist (every
+        // format except scramble and alternate shot, which only ever have a team score).
+        const canIndividual = f.entry === "player";
+        const skinsGross = r.skinsGross ?? f.gross;
+        const skinsUnit = canIndividual ? (r.skinsUnit || "team") : "team";
+        return `<div class="row" style="align-items:flex-end;margin-top:-4px;">
+          <div class="seg-admin">
+            <button type="button" data-set-skins-gross="0" class="${skinsGross ? "" : "active"}">Net</button>
+            <button type="button" data-set-skins-gross="1" class="${skinsGross ? "active" : ""}">Gross</button>
+          </div>
+          ${canIndividual ? `<div class="seg-admin">
+            <button type="button" data-set-skins-unit="team" class="${skinsUnit === "team" ? "active" : ""}">Team</button>
+            <button type="button" data-set-skins-unit="individual" class="${skinsUnit === "individual" ? "active" : ""}">Individual</button>
+          </div>` : ""}
+        </div>
+        <p class="hint" style="margin-top:6px;">Low score on a hole wins the skin; a tie carries it
+          (and everything riding on it) to the next hole. A hole only counts once every ${
+            skinsUnit === "individual" ? "player" : "team"} in the round has a score on it,
+          so skins can lag behind the leaderboard until the whole field is through a hole.</p>`;
+      })() : ""}
 
       <div class="round-setup" data-setup="${id}"></div>
     </div>`;
@@ -666,6 +685,14 @@ function renderRounds(){
     box.querySelectorAll("[data-set-play]").forEach(btn => btn.addEventListener("click", () => {
       r.play = btn.dataset.setPlay;
       renderRounds(); renderRoster();
+    }));
+    box.querySelectorAll("[data-set-skins-gross]").forEach(btn => btn.addEventListener("click", () => {
+      r.skinsGross = btn.dataset.setSkinsGross === "1";
+      renderRounds();
+    }));
+    box.querySelectorAll("[data-set-skins-unit]").forEach(btn => btn.addEventListener("click", () => {
+      r.skinsUnit = btn.dataset.setSkinsUnit;
+      renderRounds();
     }));
 
     box.querySelector("[data-del-round]").addEventListener("click", () => {
