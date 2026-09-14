@@ -638,8 +638,10 @@ function renderRounds(){
         // Individual skins only makes sense where individual scores actually exist (every
         // format except scramble and alternate shot, which only ever have a team score).
         const canIndividual = f.entry === "player";
-        const skinsGross = r.skinsGross ?? f.gross;
-        const skinsUnit = canIndividual ? (r.skinsUnit || "team") : "team";
+        // Skins defaults to gross and individual regardless of the round's own format —
+        // a deliberate choice, not just "whatever the round already is".
+        const skinsGross = r.skinsGross ?? true;
+        const skinsUnit = canIndividual ? (r.skinsUnit || "individual") : "team";
         return `<div class="row" style="align-items:flex-end;margin-top:-4px;">
           <div class="seg-admin">
             <button type="button" data-set-skins-gross="0" class="${skinsGross ? "" : "active"}">Net</button>

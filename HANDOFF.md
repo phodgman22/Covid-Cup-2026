@@ -294,7 +294,10 @@ tied or the field hasn't finished one yet.
 
 **Skins runs its own gross/net and team/individual, independent of the round's own format**
 (`round.skinsGross`, `round.skinsUnit`) — a net best ball round can still play its skins
-gross, or as individuals instead of teams. Individual only shows as an option when the
+gross, or as individuals instead of teams. **Defaults to gross and individual** — a
+deliberate choice, not "whatever the round already is" — until the commissioner picks
+otherwise; admin.html and index.html apply this default identically, since a round saved
+before these fields existed has neither one set. Individual only shows as an option when the
 round's own format actually enters individual scores (`FORMATS[format].entry === "player"`
 — everything except scramble and alternate shot, which only ever have one team score to
 work with). When skins runs individual, `skinsSectionHtml()` in index.html maps each player

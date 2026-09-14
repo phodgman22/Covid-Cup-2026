@@ -1229,8 +1229,11 @@ function skinsSectionHtml(base, roundId){
   const holes = base.course.holes || [];
   const f = FORMATS[base.round.format];
   const canIndividual = f?.entry === "player";
-  const skinsUnit = canIndividual ? (base.round.skinsUnit || "team") : "team";
-  const skinsGross = base.round.skinsGross ?? !!f?.gross;
+  // Defaults to gross and individual regardless of the round's own format — must match
+  // admin.html's defaults exactly, since a round saved before these were ever touched has
+  // neither field set.
+  const skinsUnit = canIndividual ? (base.round.skinsUnit || "individual") : "team";
+  const skinsGross = base.round.skinsGross ?? true;
   const skinsFormat = skinsUnit === "individual" ? formatFor("individual", skinsGross) : formatFor(f?.family, skinsGross);
 
   let unitIds, unitScores = {}, ctxs = {}, labelOf, openUnitOf = u => u;
