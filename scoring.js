@@ -342,6 +342,57 @@ export function matchHoleResult(format, hole, entries, ctxs){
   return a.net < b.net ? "A" : b.net < a.net ? "B" : "H";
 }
 
+/* ---------- skins ---------- */
+
+/**
+ * A round's skins game, straight through in hole order: outright low score on a hole wins
+ * it, a tie carries the skin (and every skin still riding on it) to the next hole. A hole
+ * only resolves once every unit in the round has a result on it — one unit still out means
+ * nobody can be declared low yet — so this stops at the first hole that isn't fully in and
+ * leaves the rest unresolved rather than guessing.
+ *
+ * unitScores: { unitId: { holeNumber: entry } }, one entry per unit for every unit playing.
+ * ctxs:       { unitId: ctx } — same per-unit ctx shape computeHoleResult takes.
+ *
+ * Returns { perHole: [{hole, winnerUnitId, skins}], totals: {unitId: skinsWon}, carry }.
+ * `winnerUnitId` is null on a halved hole (its skins carried on). `carry` is however many
+ * skins are still unclaimed, riding into the first unresolved hole.
+ */
+export function skinsForRound(format, holes, unitScores, ctxs){
+  const unitIds = Object.keys(unitScores || {});
+  const totals = {};
+  unitIds.forEach(u => { totals[u] = 0; });
+
+  const perHole = [];
+  let carry = 0;
+
+  for (const h of (holes || [])){
+    const results = {};
+    let allIn = unitIds.length > 0;
+    for (const u of unitIds){
+      const entry = unitScores[u]?.[h.number];
+      const res = entry ? computeHoleResult(format, h, entry, ctxs?.[u]) : null;
+      if (!res){ allIn = false; break; }
+      results[u] = res.net;
+    }
+    if (!allIn) break;
+
+    carry += 1;
+    const low = Math.min(...Object.values(results));
+    const winners = unitIds.filter(u => results[u] === low);
+
+    if (winners.length === 1){
+      totals[winners[0]] += carry;
+      perHole.push({ hole: h.number, winnerUnitId: winners[0], skins: carry });
+      carry = 0;
+    } else {
+      perHole.push({ hole: h.number, winnerUnitId: null, skins: carry });
+    }
+  }
+
+  return { perHole, totals, carry };
+}
+
 /**
  * The state of one match, from each side's scores ({ holeNumber: entry }) and hole context.
  *

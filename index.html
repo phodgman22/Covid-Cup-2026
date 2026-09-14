@@ -334,7 +334,7 @@ import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
          computeHoleResult, roundTotals, fmtToPar, strokesOnHole,
          collectPlayerHoles, summarisePlayer,
          scoreCell, grossCap, DEFAULT_MAX_RULE, formatOf,
-         gameHandicaps, matchStatus } from "./scoring.js";
+         gameHandicaps, matchStatus, skinsForRound } from "./scoring.js";
 import { isAdminCode } from "./admin-pins.js";
 
 const DB_PATH = "covidcup";
@@ -1220,6 +1220,48 @@ function boardShell(sub, inner){
 
 const fmtPts = p => (Math.floor(p) || (p % 1 ? "" : "0")) + (p % 1 ? "½" : "");
 
+// The skins game runs across the WHOLE round, independent of stroke or match play — every
+// unit needs a score on a hole before it can be settled. Empty string once it's switched off
+// or nobody's posted a score yet.
+function skinsSectionHtml(base, roundId){
+  if (!base.round.skinsOn) return "";
+  const unitIds = Object.keys(base.units);
+  if (!unitIds.length) return "";
+
+  const byPlayer = FORMATS[base.round.format]?.unit === "player";
+  const ctxFor = u => ({
+    memberIds: base.units[u]?.playerIds || [], playerPhs: base.playerPhs,
+    teamPh: base.teamPhs[u] ?? 0, holeCount: base.holeCount, maxRule: base.maxRule, maxPlus: base.maxPlus
+  });
+  const unitScores = {}, ctxs = {};
+  unitIds.forEach(u => { unitScores[u] = scores?.[roundId]?.[u] || {}; ctxs[u] = ctxFor(u); });
+
+  const { perHole, totals, carry } = skinsForRound(base.round.format, base.course.holes || [], unitScores, ctxs);
+  if (!perHole.length) return "";
+
+  const standing = unitIds.map(u => ({ u, skins: totals[u] || 0 }))
+    .filter(r => r.skins > 0)
+    .sort((a, b) => b.skins - a.skins);
+
+  const label = byPlayer ? "Player" : "Team";
+  const rows = standing.length
+    ? '<table class="lboard"><tr class="head"><th class="nm">' + label + '</th><th>Skins</th></tr>' +
+        standing.map(r =>
+          '<tr class="lb-open" data-open-round="' + roundId + '" data-open-units="' + esc(r.u) + '">' +
+            nameCell(base.units[r.u].playerIds, base.units[r.u].name) +
+            '<td class="num tot under">' + r.skins + "</td></tr>").join("") +
+      "</table>"
+    : '<p class="board-empty">No skins won yet.</p>';
+
+  const nextHole = (base.course.holes || [])[perHole.length]?.number;
+  const pending = carry > 0 && nextHole
+    ? '<p class="board-tip">' + carry + " skin" + (carry > 1 ? "s" : "") +
+        " riding into hole " + nextHole + " &mdash; waiting on the rest of the field.</p>"
+    : "";
+
+  return '<div class="board-sub" style="margin-top:14px;">Skins</div>' + rows + pending;
+}
+
 function renderRoundBoard(el, roundId){
   const base = roundContext(roundId);
   if (!base){ el.innerHTML = boardShell("", '<p class="board-empty">This round has no course yet.</p>'); return; }
@@ -1260,7 +1302,7 @@ function renderRoundBoard(el, roundId){
         "</tr>").join("") +
     "</table>";
 
-  el.innerHTML = boardShell(sub, table);
+  el.innerHTML = boardShell(sub, table + skinsSectionHtml(base, roundId));
 }
 
 // Hole context for one side of a match.
@@ -1332,7 +1374,8 @@ function renderMatchBoard(el, roundId, base){
         "</tr>").join("") +
     "</table>";
 
-  el.innerHTML = boardShell(sub, matchesTable + '<div class="board-sub" style="margin-top:14px;">Standings</div>' + standingsTable);
+  el.innerHTML = boardShell(sub, matchesTable + '<div class="board-sub" style="margin-top:14px;">Standings</div>' + standingsTable +
+    skinsSectionHtml(base, roundId));
 }
 
 function renderOverallBoard(el){

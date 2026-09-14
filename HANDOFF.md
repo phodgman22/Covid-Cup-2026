@@ -276,6 +276,22 @@ round's course are used. The player app lists them on Home, badges the hole, dot
 strip, notes it on the hole before, and marks it on the full card. It does not record who won —
 like Michigan, that's still settled on the course.
 
+## Skins
+
+Opt in per round in the console (`round.skinsOn`) — one checkbox, right next to closest to
+the pin and long drive. Low score on a hole wins the skin; a tie carries it, and everything
+already riding on it, to the next hole. `skinsForRound()` in scoring.js does the actual
+counting and is format-agnostic — it runs on whatever `computeHoleResult` returns for each
+unit, so it works the same in stroke or match play, team or individual formats.
+
+**A hole only resolves once every unit in the round has a score on it**, not just the ones
+on a given tee time — skins is a whole-field game, so one slow team holds up the whole thing
+the same way one slow foursome would on the actual course. `perHole` stops at the first
+unresolved hole rather than guessing; `carry` says how many skins are riding into it. The
+player app shows a Skins table under the normal leaderboard (or under match play's
+standings) once at least one skin's been won — nothing renders while every hole is still
+tied or the field hasn't finished one yet.
+
 ## Statistics
 
 Gross and net, per round or Overall, and they follow the formats in view: a gross-only view

@@ -197,8 +197,9 @@ table.grid .empty-row{color:var(--dim);text-align:center;padding:10px;}
         <input type="file" id="uploadInput" accept=".xlsx,.xls" class="hidden">
       </div>
     </div>
-    <p class="hint">The download is always a blank template. Uploading <b>replaces</b> courses and
-      players. Players are matched by name &mdash; anyone already in the roster keeps their existing
+    <p class="hint">The download opens to a <b>Read me first</b> sheet, plus one example row on each
+      of the other three &mdash; delete the examples before uploading. Uploading <b>replaces</b> courses
+      and players. Players are matched by name &mdash; anyone already in the roster keeps their existing
       login code.</p>
     <div id="importStatus" class="status"></div>
   </div>
@@ -627,7 +628,14 @@ function renderRounds(){
           <label>Hole(s)</label>
           <input data-rf="ldHoles" inputmode="numeric" placeholder="e.g. 6" value="${esc(r.ldHoles || "")}">
         </div>` : ""}
+        <label class="check-item ${r.skinsOn ? "selected" : ""}" style="flex:0 0 auto;color:var(--text);">
+          <input type="checkbox" data-rf="skinsOn" ${r.skinsOn ? "checked" : ""}>Skins game
+        </label>
       </div>
+      ${r.skinsOn ? `<p class="hint" style="margin-top:-4px;">Low score on a hole wins the skin; a tie carries it
+        (and everything riding on it) to the next hole. A hole only counts once every ${
+          FORMATS[r.format]?.unit === "player" ? "player" : "team"} in the round has a score on it,
+        so skins can lag behind the leaderboard until the whole field is through a hole.</p>` : ""}
 
       <div class="round-setup" data-setup="${id}"></div>
     </div>`;
@@ -1107,6 +1115,7 @@ document.getElementById("addPlayerBtn").addEventListener("click", () => {
 
 // Sheet layouts are flat on purpose — one row per thing, course name repeated — so the
 // file stays obvious to someone who has never seen it and is editing it in Excel.
+const SHEET_READ_ME = "Read me first";
 const SHEET_COURSES = "Courses";
 const SHEET_HOLES   = "Holes";
 const SHEET_PLAYERS = "Players";
@@ -1115,15 +1124,69 @@ const COURSE_HEADERS = ["Course", "Location", "Holes (9 or 18)", "Tee", "Rating"
 const HOLE_HEADERS   = ["Course", "Hole", "Par", "Stroke index"];
 const PLAYER_HEADERS = ["Player", "Handicap index", "Tee", "Email"];
 
+// An obviously-fake course/player name, so a row left in by accident is easy to spot and
+// remove in the console afterward rather than quietly becoming a real entry.
+const EXAMPLE = "EXAMPLE — delete this row";
+
 function setImportStatus(msg, cls){
   const el = document.getElementById("importStatus");
   el.textContent = msg;
   el.className = "status" + (cls ? " " + cls : "");
 }
 
+// Plain sentences, one per row, on the sheet that opens first. Example rows on the other
+// three sheets show the shape; this explains the two things that aren't obvious from
+// column headers alone — how the sheets link up, and the one silent-failure mode.
+function buildReadMeRows(){
+  return [
+    ["Covid Cup — spreadsheet setup"],
+    [""],
+    ["Three sheets do the real work: Courses, Holes, Players. Fill them in, save the file, and"],
+    ["upload it back in the console — Download template / Upload filled template."],
+    [""],
+    ["Each of those three sheets has one EXAMPLE row already in it, showing the format. Delete"],
+    ["the example rows before you upload — otherwise you'll get a fake course and a fake player"],
+    ["alongside your real ones (harmless, but easy to forget to clean up)."],
+    [""],
+    ["COURSES — one row per TEE, not one row per course. A course with four tees (Black, Blue,"],
+    ["White, Gold) needs four rows, all with the same Course name. Location and Holes only need"],
+    ["to be filled in on one of those rows; leave the rest blank."],
+    [""],
+    ["HOLES — one row per hole. An 18-hole course needs 18 rows, all with the same Course name"],
+    ["as on the Courses sheet."],
+    [""],
+    ["PLAYERS — one row per player. Tee must be spelled exactly as it is on the Courses sheet"],
+    ["— same capitalization too (\"White\", not \"white\"). This one matters: a Tee that doesn't"],
+    ["match anything on the Courses sheet doesn't raise an error, it just quietly gives that"],
+    ["player a handicap of zero. If someone's handicap looks wrong after you upload, this is the"],
+    ["first thing to check."],
+    [""],
+    ["Course names on the Courses and Holes sheets need to match each other exactly too, for the"],
+    ["same reason — that's how the app knows which holes belong to which course."],
+    [""],
+    ["Uploading REPLACES every course and every player with what's in the file. Players are"],
+    ["matched by name against who's already in the roster, so anyone already there keeps their"],
+    ["login code and any settings you've made for them — you're not starting over each time."]
+  ];
+}
+
 function buildTemplateRows(){
-  // Always blank — the template is for setting an event up, not a copy of what's entered.
-  return { courseRows: [COURSE_HEADERS], holeRows: [HOLE_HEADERS], playerRows: [PLAYER_HEADERS] };
+  const readMeRows = buildReadMeRows();
+
+  const courseRows = [COURSE_HEADERS,
+    [EXAMPLE, "Anytown, ST", 18, "White", 72.3, 134, 6400],
+    [EXAMPLE, "", "", "Gold", 69.5, 126, 5800]];
+
+  // A plausible, valid par-72 card: every stroke index 1-18 used once, four par 3s, four par 5s.
+  const EXAMPLE_HOLES = [
+    [1, 4, 7], [2, 4, 13], [3, 3, 17], [4, 5, 1], [5, 4, 9], [6, 3, 15], [7, 4, 5], [8, 5, 11], [9, 4, 3],
+    [10, 4, 8], [11, 3, 18], [12, 5, 2], [13, 4, 10], [14, 4, 6], [15, 3, 16], [16, 5, 4], [17, 4, 12], [18, 4, 14]
+  ];
+  const holeRows = [HOLE_HEADERS, ...EXAMPLE_HOLES.map(([hole, par, si]) => [EXAMPLE, hole, par, si])];
+
+  const playerRows = [PLAYER_HEADERS, [EXAMPLE, 12.4, "White", "example@email.com"]];
+
+  return { readMeRows, courseRows, holeRows, playerRows };
 }
 
 function downloadTemplate(){
@@ -1131,8 +1194,13 @@ function downloadTemplate(){
     setImportStatus("Spreadsheet library didn't load — check your connection.", "err");
     return;
   }
-  const { courseRows, holeRows, playerRows } = buildTemplateRows();
+  const { readMeRows, courseRows, holeRows, playerRows } = buildTemplateRows();
   const wb = XLSX.utils.book_new();
+
+  // First, so it's the tab Excel opens to.
+  const wsReadMe = XLSX.utils.aoa_to_sheet(readMeRows);
+  wsReadMe["!cols"] = [{ wch: 88 }];
+  XLSX.utils.book_append_sheet(wb, wsReadMe, SHEET_READ_ME);
 
   const wsCourses = XLSX.utils.aoa_to_sheet(courseRows);
   wsCourses["!cols"] = [{ wch: 26 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 9 }, { wch: 8 }, { wch: 9 }];
