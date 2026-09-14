@@ -6,20 +6,47 @@
 
 /* ---------- formats ---------- */
 
-// unit  — what appears as a leaderboard row: the whole group, or each player
-// entry — how many scores get entered per hole: one for the team, or one per player
+// family  — the game being played; a game's net and gross versions share a family
+// gross   — scored off actual strokes, with no handicap shots at all
+// unit    — what appears as a leaderboard row: the whole team, or each player
+// entry   — how many scores get entered per hole: one for the team, or one per player
+// teamHcp — a single team ball, netted off a combined team handicap
 export const FORMATS = {
-  "scramble":         { label: "Scramble",              unit: "group",  entry: "team",   teamHcp: true },
-  "alternate-shot":   { label: "Alternate shot",        unit: "group",  entry: "team",   teamHcp: true },
-  "best-ball-net":    { label: "Best ball (net)",       unit: "group",  entry: "player", teamHcp: false },
-  "shamble":          { label: "Shamble",               unit: "group",  entry: "player", teamHcp: false },
-  "total-net":        { label: "Total net (all count)", unit: "group",  entry: "player", teamHcp: false },
-  "total-gross":      { label: "Total gross",           unit: "group",  entry: "player", teamHcp: false },
-  "individual-net":   { label: "Individual (net)",      unit: "player", entry: "player", teamHcp: false },
-  "individual-gross": { label: "Individual (gross)",    unit: "player", entry: "player", teamHcp: false }
+  "best-ball-net":        { label: "Best ball (net)",         family: "best-ball",      gross: false, unit: "group",  entry: "player", teamHcp: false },
+  "best-ball-gross":      { label: "Best ball (gross)",       family: "best-ball",      gross: true,  unit: "group",  entry: "player", teamHcp: false },
+  "scramble":             { label: "Scramble (net)",          family: "scramble",       gross: false, unit: "group",  entry: "team",   teamHcp: true  },
+  "scramble-gross":       { label: "Scramble (gross)",        family: "scramble",       gross: true,  unit: "group",  entry: "team",   teamHcp: false },
+  "shamble":              { label: "Shamble (net)",           family: "shamble",        gross: false, unit: "group",  entry: "player", teamHcp: false },
+  "shamble-gross":        { label: "Shamble (gross)",         family: "shamble",        gross: true,  unit: "group",  entry: "player", teamHcp: false },
+  "alternate-shot":       { label: "Alternate shot (net)",    family: "alternate-shot", gross: false, unit: "group",  entry: "team",   teamHcp: true  },
+  "alternate-shot-gross": { label: "Alternate shot (gross)",  family: "alternate-shot", gross: true,  unit: "group",  entry: "team",   teamHcp: false },
+  "total-net":            { label: "Total net (all count)",   family: "total",          gross: false, unit: "group",  entry: "player", teamHcp: false },
+  "total-gross":          { label: "Total gross (all count)", family: "total",          gross: true,  unit: "group",  entry: "player", teamHcp: false },
+  "individual-net":       { label: "Individual (net)",        family: "individual",     gross: false, unit: "player", entry: "player", teamHcp: false },
+  "individual-gross":     { label: "Individual (gross)",      family: "individual",     gross: true,  unit: "player", entry: "player", teamHcp: false }
 };
 
-export const isGrossFormat = f => f === "total-gross" || f === "individual-gross";
+// The games, in the order the console offers them, with the plain-English line a
+// commissioner needs to pick one.
+export const FORMAT_FAMILIES = {
+  "best-ball":      { label: "Best ball",      blurb: "Everyone plays his own ball. The team takes the best score on each hole." },
+  "scramble":       { label: "Scramble",       blurb: "Everyone hits, the team picks the best shot and all play from there. One team score." },
+  "shamble":        { label: "Shamble",        blurb: "Pick the best drive, then everyone plays his own ball in. The team takes the best score." },
+  "alternate-shot": { label: "Alternate shot", blurb: "Partners take turns hitting one ball. One team score." },
+  "total":          { label: "Total",          blurb: "Everyone plays his own ball, and every score counts toward the team." },
+  "individual":     { label: "Individual",     blurb: "Classic stroke play. Every player is on his own." }
+};
+
+export const DEFAULT_FORMAT = "best-ball-net";
+
+// The format key for a game played net or gross.
+export const formatFor = (family, gross) =>
+  Object.keys(FORMATS).find(k => FORMATS[k].family === family && FORMATS[k].gross === !!gross) || DEFAULT_FORMAT;
+
+// A round follows the event's format unless it has been given its own.
+export const formatOf = (round, event) => round?.format || event?.format || DEFAULT_FORMAT;
+
+export const isGrossFormat = f => !!FORMATS[f]?.gross;
 
 /* ---------- course + handicap math ---------- */
 
@@ -197,40 +224,38 @@ export function scoreCell(cell, par, shots, maxRule, maxPlus){
  */
 export function computeHoleResult(format, hole, entry, ctx){
   const { memberIds = [], playerPhs = {}, teamPh = 0, holeCount = 18, maxRule, maxPlus } = ctx || {};
+  const f = FORMATS[format];
+  if (!f) return null;
   const par = +hole.par || 0;
   const si = +hole.si || 0;
+  // Gross formats give no handicap shots, so net and gross come out the same.
+  const shotsFor = ph => f.gross ? 0 : strokesOnHole(ph, si, holeCount);
 
-  if (FORMATS[format]?.entry === "team"){
-    const res = scoreCell(entry?.team, par, strokesOnHole(teamPh, si, holeCount), maxRule, maxPlus);
+  if (f.entry === "team"){
+    const res = scoreCell(entry?.team, par, shotsFor(teamPh), maxRule, maxPlus);
     if (!res) return null;
     return { net: res.net, gross: res.gross };
   }
 
   const results = memberIds
-    .map(id => scoreCell(entry?.[id], par, strokesOnHole(playerPhs[id], si, holeCount), maxRule, maxPlus))
+    .map(id => scoreCell(entry?.[id], par, shotsFor(playerPhs[id]), maxRule, maxPlus))
     .filter(Boolean);
 
   if (!results.length) return null;
 
-  if (format === "best-ball-net" || format === "shamble"){
-    // Wait for every partner. Nothing is decided off a half-filled hole: the first score
-    // in can look like the team's result and then change when the partner's lands.
-    if (results.length < memberIds.length) return null;
-    return { net: Math.min(...results.map(r => r.net)), gross: null };
-  }
-  if (format === "total-net"){
-    if (results.length < memberIds.length) return null;
-    return { net: results.reduce((s, r) => s + r.net, 0), gross: null };
-  }
-  if (format === "total-gross"){
-    if (results.length < memberIds.length) return null;
-    return { net: results.reduce((s, r) => s + r.gross, 0), gross: null };
-  }
-  if (format === "individual-net"){
+  if (f.family === "individual"){
     return { net: results[0].net, gross: results[0].gross };
   }
-  if (format === "individual-gross"){
-    return { net: results[0].gross, gross: results[0].gross };
+
+  // Wait for every partner. Nothing is decided off a half-filled hole: the first score in
+  // can look like the team's result and then change when the partner's lands.
+  if (results.length < memberIds.length) return null;
+
+  if (f.family === "best-ball" || f.family === "shamble"){
+    return { net: Math.min(...results.map(r => r.net)), gross: null };
+  }
+  if (f.family === "total"){
+    return { net: results.reduce((s, r) => s + r.net, 0), gross: null };
   }
   return null;
 }
@@ -273,16 +298,24 @@ export function fmtToPar(toPar){
 
 /**
  * Every hole a player has a score on in one round, as
- * { playerId: [{ hole, par, gross, net, pickedUp, capped }] }, with the round's maximum
- * score already applied — the same numbers the leaderboard counts.
+ * { playerId: [{ hole, par, gross, net, pickedUp, capped, counted }] }, with the round's
+ * maximum already applied — the same numbers the leaderboard counts.
  *
  * In scramble and alternate shot the pair share a single score, so that score is
  * credited to BOTH partners — otherwise a man who played four team rounds would show
  * no statistics at all.
+ *
+ * `counted` answers "did his score count for the team on this hole?" — the stroke-play
+ * answer to holes won. In best ball and shamble it is true for whoever made the team's
+ * score (both players on a tie), once every partner has a score in. In total formats every
+ * score counts. Team-ball and individual formats leave it out.
  */
 export function collectPlayerHoles(format, holes, groups, roundScores, playerPhs, teamPhs, holeCount = 18, maxRule, maxPlus){
   const out = {};
-  const teamEntry = FORMATS[format]?.entry === "team";
+  const f = FORMATS[format];
+  if (!f) return out;
+  const teamEntry = f.entry === "team";
+  const bestOf = f.family === "best-ball" || f.family === "shamble";
 
   Object.entries(groups || {}).forEach(([gid, g]) => {
     const memberIds = g.playerIds || [];
@@ -292,13 +325,27 @@ export function collectPlayerHoles(format, holes, groups, roundScores, playerPhs
       const entry = groupScores[h.number];
       if (!entry) return;
 
-      memberIds.forEach(pid => {
+      const scored = memberIds.map(pid => {
         const cell = teamEntry ? entry.team : entry[pid];
-        // A team score is netted off the team handicap, an individual one off his own.
+        // A team score is netted off the team handicap, an individual one off his own;
+        // gross formats give no shots at all.
         const ph = teamEntry ? (teamPhs?.[gid] ?? 0) : (playerPhs?.[pid] ?? 0);
-        const res = scoreCell(cell, h.par, strokesOnHole(ph, h.si, holeCount), maxRule, maxPlus);
+        const shots = f.gross ? 0 : strokesOnHole(ph, h.si, holeCount);
+        return { pid, res: scoreCell(cell, h.par, shots, maxRule, maxPlus) };
+      });
+
+      const complete = scored.every(s => s.res);
+      const best = complete && bestOf ? Math.min(...scored.map(s => s.res.net)) : null;
+
+      scored.forEach(({ pid, res }) => {
         if (!res) return;
-        (out[pid] = out[pid] || []).push({ hole: h.number, par: h.par, ...res });
+        let counted;
+        if (bestOf) counted = complete && res.net === best;
+        else if (f.family === "total") counted = true;
+        (out[pid] = out[pid] || []).push({
+          hole: h.number, par: h.par, ...res,
+          ...(counted === undefined ? {} : { counted })
+        });
       });
     });
   });
@@ -327,13 +374,14 @@ function addToBucket(bucket, strokes, par){
 export function summarisePlayer(records){
   const gross = emptyBucket();
   const net = emptyBucket();
-  let pickedUp = 0;
+  let pickedUp = 0, counted = 0, countable = 0;
 
   (records || []).forEach(r => {
     if (r.pickedUp) pickedUp += 1;
+    if (r.counted !== undefined){ countable += 1; if (r.counted) counted += 1; }
     addToBucket(gross, r.gross, r.par);
     addToBucket(net, r.net, r.par);
   });
 
-  return { gross, net, pickedUp, holesPlayed: (records || []).length };
+  return { gross, net, pickedUp, counted, countable, holesPlayed: (records || []).length };
 }

@@ -64,26 +64,32 @@ No bundler, no framework:
 
 ## Formats
 
-Eight, defined in one place — the `FORMATS` table at the top of `scoring.js`:
+Twelve, defined in one place — the `FORMATS` table at the top of `scoring.js`. Six games
+(`FORMAT_FAMILIES`), each playable **net or gross**. Gross versions give no handicap shots,
+so net and gross come out the same.
 
-| Format | Leaderboard row | Scores entered per hole |
+| Game | Leaderboard row | Scores entered per hole |
 |---|---|---|
-| Scramble | the group | one team score |
-| Alternate shot | the group | one team score |
-| Best ball (net) | the group | one per player, best net counts |
-| Shamble | the group | one per player, best net counts |
-| Total net | the group | one per player, all count |
-| Total gross | the group | one per player, all count |
-| Individual (net) | each player | one per player |
-| Individual (gross) | each player | one per player |
+| Best ball | the team | one per player, best counts |
+| Scramble | the team | one team score |
+| Shamble | the team | one per player, best counts |
+| Alternate shot | the team | one team score |
+| Total | the team | one per player, all count |
+| Individual | each player | one per player |
+
+**The format is chosen for the whole event** at the top of the console (`event.format`,
+default Best ball (net)), and every round follows it unless a round is given its own
+(`round.format` empty means "follow the event" — always resolve it with `formatOf()`). The
+console adapts to the formats in play: allowance settings hide when everything is gross, and
+team weightings only show when a net scramble or alternate shot is being played.
 
 Two independent axes are kept separate on purpose: **what a format does to a hole**
 (`entry`) versus **who ends up on the leaderboard** (`unit`). The original KHC app fused
 them, which is exactly what made it impossible to reuse. Adding a format should mean
 adding a row to `FORMATS` and a branch in `computeHoleResult` — nothing else.
 
-Format is **per round**, so a five-round trip can be scramble on day one and singles on
-day five. Groups are per round too, so pairings can change day to day.
+A round can still override the event format, so a five-round trip can be scramble on day one
+and singles on day five. Groups are per round too, so pairings can change day to day.
 
 **Best ball and shamble wait for every partner** before a hole counts. The first score in
 can look like the team's result and then change when the partner's lands, so nothing is
@@ -220,10 +226,9 @@ module script that uses it.
 ## Scorecard
 
 On eggshell stock rather than the dark theme, so it reads clearly outdoors. The palette is
-redefined on the scorecard card, so everything inside flips together. **A hole can't be left
-until every player on it has a score or Picked up:** Next stays disabled and holes past the
-first blank one are locked in the strip. Going back to fix a hole is always allowed. Same rule
-as the Michigan app.
+redefined on the scorecard card, so everything inside flips together. **Scoring moves one hole at a time:** any hole can be
+looked at, but holes after the first one missing a score are view-only until every player on
+that hole has a score or Picked up. Going back to fix a hole is always allowed.
 
 ## Closest to the pin and long drive
 
@@ -232,6 +237,13 @@ Set per round in the console: tick the contest and type the hole(s) (`ctpOn`/`ct
 round's course are used. The player app lists them on Home, badges the hole, dots it on the
 strip, notes it on the hole before, and marks it on the full card. It does not record who won —
 like Michigan, that's still settled on the course.
+
+## Statistics
+
+Gross and net, per round or Overall, and they follow the formats in view: a gross-only view
+drops the net toggle, and best ball and shamble add **Counted** — how many holes a player's
+score was the one his team used (both players on a tie). That is the stroke-play answer to
+"holes won"; true holes won and lost need match play, which this app deliberately doesn't do.
 
 ## Leaderboard
 

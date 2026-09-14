@@ -87,7 +87,8 @@ button.link{background:none;border:none;color:var(--accent);cursor:pointer;font-
 #tab-score .nav-holes button.primary{background:#1c2330;border-color:#1c2330;color:#fff;}
 #tab-score .nav-holes button:disabled{opacity:.3;}
 .strip button{position:relative;}
-.strip button.locked{opacity:.35;cursor:not-allowed;}
+.strip button.ahead{opacity:.45;}
+.big-box input:disabled:not(.picked){background:var(--surface3);}
 .strip button.ctp::after,.strip button.ld::after{content:"";position:absolute;top:3px;right:3px;
   width:6px;height:6px;border-radius:50%;}
 .strip button.ctp::after{background:#c0272d;}
@@ -267,7 +268,7 @@ import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
          computeHoleResult, roundTotals, fmtToPar, strokesOnHole,
          collectPlayerHoles, summarisePlayer,
-         scoreCell, grossCap, DEFAULT_MAX_RULE } from "./scoring.js";
+         scoreCell, grossCap, DEFAULT_MAX_RULE, formatOf } from "./scoring.js";
 import { isAdminCode } from "./admin-pins.js";
 
 const DB_PATH = "covidcup";
@@ -315,7 +316,9 @@ function unitsFor(roundId, round){
 }
 
 function roundContext(roundId){
-  const round = cfg.rounds?.[roundId];
+  const stored = cfg.rounds?.[roundId];
+  // Every round carries its effective format, so nothing downstream has to ask twice.
+  const round = stored && { ...stored, format: formatOf(stored, cfg.event) };
   const course = courseFor(roundId);
   if (!round || !course) return null;
 
@@ -366,7 +369,7 @@ function renderHome(){
   document.getElementById("roundsInfo").innerHTML = rounds.length ? rounds.map(([id, r], i) => {
     const course = courseFor(id);
     return `<div class="pairing">
-      <b>${esc(r.name || `Round ${i + 1}`)}</b> &middot; ${esc(FORMATS[r.format]?.label || r.format)}
+      <b>${esc(r.name || `Round ${i + 1}`)}</b> &middot; ${esc(FORMATS[formatOf(r, cfg.event)]?.label || "")}
       <div class="when">${course ? esc(course.name) + (course.location ? " · " + esc(course.location) : "") + " · par " + coursePar(course.holes) : "No course set"}</div>
       ${(() => {
         const ctp = contestHoles(r.ctpOn, r.ctpHoles, course?.holes);
@@ -486,6 +489,7 @@ function currentCard(){
   return {
     roundId, round, course, holeCount, maxRule, maxPlus, contests, teams, fields,
     start: card.start,
+    gross: !!FORMATS[round.format]?.gross,
     format: round.format,
     holes: course.holes || []
   };
@@ -562,8 +566,8 @@ function renderHoleView(body, c){
   const hole = c.holes.find(h => h.number === currentHole);
   const idx = c.holes.indexOf(hole);
 
-  // Holes past the first one still missing a score are locked, so a group can't get three
-  // holes down the fairway before anyone notices a blank. Going back is always allowed.
+  // Holes past the first one still missing a score can be looked at but not scored, so a
+  // group can't get three holes on before anyone notices a blank. Going back always works.
   const openIdx = firstOpenIndex(c);
   const strip = c.holes.map((h, i) => {
     const locked = openIdx !== -1 && i > openIdx;
@@ -571,20 +575,23 @@ function renderHoleView(body, c){
     return '<button data-goto="' + h.number + '" class="' +
       (h.number === currentHole ? "current " : "") +
       (holeComplete(c, h.number) ? "done " : "") +
-      (locked ? "locked " : "") +
+      (locked ? "ahead " : "") +
       (c.contests.ctp.includes(h.number) ? "ctp " : "") +
       (c.contests.ld.includes(h.number) ? "ld" : "") + '"' +
-      (locked ? " disabled" : "") +
       (contest ? ' title="' + contest + '"' : "") +
       ">" + h.number + "</button>";
   }).join("");
+
+  // A hole after the one being played is view-only until that hole is finished.
+  const ahead = openIdx !== -1 && idx > openIdx;
+  const openHole = openIdx === -1 ? null : c.holes[openIdx].number;
 
   // With two teams on one card, each team's boxes sit under its name.
   const headed = c.teams.length > 1 && FORMATS[c.format]?.entry !== "team";
   let lastUnit = null;
   const entries = c.fields.map((f, i) => {
     const cell = cellFor(c, f, hole.number) || {};
-    const shots = strokesOnHole(f.ph, hole.si, c.holeCount);
+    const shots = c.gross ? 0 : strokesOnHole(f.ph, hole.si, c.holeCount);
     const cap = grossCap(c.maxRule, hole.par, shots, c.maxPlus);
     const picked = !!cell.x;
     const header = headed && f.unitId !== lastUnit
@@ -594,20 +601,23 @@ function renderHoleView(body, c){
       '<div class="entry" data-i="' + i + '">' +
         '<span class="who">' + esc(f.label) +
           '<span class="shots">' +
-            (shots ? shots + " shot" + (shots > 1 ? "s" : "") + " here" : "no shot here") +
-            " &middot; plays off " + f.ph + (cap != null ? " &middot; max " + cap : "") +
+            (c.gross
+              ? "gross" + (cap != null ? " &middot; max " + cap : "")
+              : (shots ? shots + " shot" + (shots > 1 ? "s" : "") + " here" : "no shot here") +
+                " &middot; plays off " + f.ph + (cap != null ? " &middot; max " + cap : "")) +
           "</span>" +
         "</span>" +
         '<span class="big-box">' +
           '<input type="' + (picked ? "text" : "number") + '" inputmode="numeric" min="1" max="15"' +
-            ' class="' + (picked ? "picked" : "") + '"' + (picked ? " disabled" : "") +
+            ' class="' + (picked ? "picked" : "") + '"' + (picked || ahead ? " disabled" : "") +
             ' value="' + (picked ? "X" : (cell.v ?? "")) + '" data-score>' +
           (shots ? '<span class="dot ' + (shots > 1 ? "two" : "") + '"></span>' : "") +
         "</span>" +
-        '<span class="acts">' +
-          (cap == null && !picked ? "" : '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>') +
-          "<button data-clear>Clear</button>" +
-        "</span>" +
+        (ahead ? "" :
+          '<span class="acts">' +
+            (cap == null && !picked ? "" : '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>') +
+            "<button data-clear>Clear</button>" +
+          "</span>") +
       "</div>";
   }).join("");
 
@@ -621,12 +631,14 @@ function renderHoleView(body, c){
     contestBadges(c, hole.number) +
     entries +
     totalsHtml(c) +
-    '<p class="gate-hint' + (complete ? " hidden" : "") + '">Every player needs a score' +
-      (c.maxRule === "none" ? "" : " or Picked up") + " before moving on.</p>" +
+    (ahead
+      ? '<p class="gate-hint">Looking ahead &mdash; finish hole ' + openHole + " before scoring this one.</p>"
+      : '<p class="gate-hint' + (complete ? " hidden" : "") + '">Every player needs a score' +
+          (c.maxRule === "none" ? "" : " or Picked up") + " before the next hole opens for scoring.</p>") +
     '<div class="nav-holes">' +
       "<button data-prev" + (idx === 0 ? " disabled" : "") + ">&larr; " +
         (idx === 0 ? "Start" : "Hole " + c.holes[idx - 1].number) + "</button>" +
-      '<button data-next class="primary"' + (idx === c.holes.length - 1 || !complete ? " disabled" : "") + ">" +
+      '<button data-next class="primary"' + (idx === c.holes.length - 1 ? " disabled" : "") + ">" +
         (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + " &rarr;</button>" +
     "</div>" +
     (c.holes[idx + 1] && contestLabel(c, c.holes[idx + 1].number)
@@ -662,7 +674,8 @@ function renderHoleView(body, c){
       const now = !!cellFor(c, f, hole.number)?.x;
       queueScoreWrite(c.roundId, f.unitId, hole.number, f.key, now ? { v: null, x: false } : { v: null, x: true }, true);
     });
-    row.querySelector("[data-clear]").addEventListener("click", () => {
+    // Look-ahead holes have no scoring buttons at all.
+    row.querySelector("[data-clear]")?.addEventListener("click", () => {
       queueScoreWrite(c.roundId, f.unitId, hole.number, f.key, { v: null, x: false }, true);
     });
   });
@@ -676,7 +689,6 @@ function renderHoleView(body, c){
     renderScorecard();
   });
   body.querySelector("[data-next]")?.addEventListener("click", () => {
-    if (!holeComplete(c, hole.number)) return;
     currentHole = c.holes[idx + 1]?.number ?? currentHole;
     renderScorecard();
   });
@@ -695,15 +707,9 @@ function refreshRunningTotal(c){
   const openIdx = firstOpenIndex(c);
   document.querySelectorAll("#scorecardBody [data-goto]").forEach((btn, i) => {
     btn.classList.toggle("done", holeComplete(c, +btn.dataset.goto));
-    const locked = openIdx !== -1 && i > openIdx;
-    btn.classList.toggle("locked", locked);
-    btn.disabled = locked;
+    btn.classList.toggle("ahead", openIdx !== -1 && i > openIdx);
   });
-  const complete = holeComplete(c, currentHole);
-  const idx = c.holes.findIndex(h => h.number === currentHole);
-  const next = document.querySelector("#scorecardBody [data-next]");
-  if (next) next.disabled = idx === c.holes.length - 1 || !complete;
-  document.querySelector("#scorecardBody .gate-hint")?.classList.toggle("hidden", complete);
+  document.querySelector("#scorecardBody .gate-hint")?.classList.toggle("hidden", holeComplete(c, currentHole));
 }
 
 function renderFullCard(body, c){
@@ -715,7 +721,7 @@ function renderFullCard(body, c){
   // leaderboard uses, so the card and the leaderboard can never disagree.
   const countedFor = (f, h) => scoreCell(
     cellFor(c, f, h.number), h.par,
-    strokesOnHole(f.ph, h.si, c.holeCount), c.maxRule, c.maxPlus
+    c.gross ? 0 : strokesOnHole(f.ph, h.si, c.holeCount), c.maxRule, c.maxPlus
   );
   const sumGross = (f, hs) => {
     let total = 0, any = false;
@@ -771,7 +777,7 @@ function renderFullCard(body, c){
     '<p style="font-size:12px;color:var(--dim);margin-top:10px;">' +
       "Circle = birdie &middot; double circle = eagle &middot; box = bogey &middot; double box = double or worse. " +
       "Numbers are the gross that counts, after the round's maximum; X is a picked-up ball, scored at the maximum. " +
-      "Totals are net." +
+      (c.gross ? "Totals are gross." : "Totals are net.") +
     "</p>";
 }
 
@@ -1006,14 +1012,31 @@ const STAT_COLUMNS = [
   { key: "pars",    label: "Pars",    best: "high" },
   { key: "bogeys",  label: "Bogeys",  best: "low"  },
   { key: "doubles", label: "Dbl+",    best: "low"  },
+  { key: "counted", label: "Counted", best: "high", onlyWhen: "counted" },
   { key: "holes",   label: "Holes",   best: "high" }
 ];
 
+// The rounds a stats view covers — one round, or all of them for Overall.
+const statRounds = which => which === "__all" ? orderedRounds().map(([id]) => id) : [which];
+
+// What the formats in view allow: net only means something if some round is played net,
+// and "Counted" only exists in best ball and shamble.
+function statsScope(which){
+  const formats = statRounds(which)
+    .map(id => roundContext(id)?.round.format)
+    .filter(Boolean)
+    .map(k => FORMATS[k]);
+  return {
+    anyNet: formats.some(f => !f.gross),
+    counted: formats.some(f => f.family === "best-ball" || f.family === "shamble"),
+    teamBall: formats.some(f => f.entry === "team")
+  };
+}
+
 // Every player's records across one round, or the whole event.
 function gatherRecords(which){
-  const rounds = which === "__all" ? orderedRounds().map(([id]) => id) : [which];
   const all = {};
-  rounds.forEach(roundId => {
+  statRounds(which).forEach(roundId => {
     const base = roundContext(roundId);
     if (!base) return;
     const { round, course, groups, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = base;
@@ -1030,19 +1053,26 @@ function gatherRecords(which){
 
 function renderStatsTab(){
   fillRoundSelect(document.getElementById("statsRoundSelect"), { includeOverall: true });
-  const sortSel = document.getElementById("statSort");
-  if (!sortSel.options.length){
-    sortSel.innerHTML = STAT_COLUMNS.map(c =>
-      '<option value="' + c.key + '">Rank by ' + c.label + '</option>').join("");
-    sortSel.value = statsSort;
-  }
   renderStats();
 }
 
 function renderStats(){
   const which = document.getElementById("statsRoundSelect").value;
-  const records = gatherRecords(which);
+  const scope = statsScope(which);
 
+  // A gross-only view has no net to show, so the toggle goes and gross is used.
+  const basisBox = document.getElementById("statsBasis");
+  basisBox.classList.toggle("hidden", !scope.anyNet);
+  const basis = scope.anyNet ? statsBasis : "gross";
+  basisBox.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.basis === basis));
+
+  const columns = STAT_COLUMNS.filter(c => !c.onlyWhen || scope[c.onlyWhen]);
+  if (!columns.some(c => c.key === statsSort)) statsSort = "toPar";
+  const sortSel = document.getElementById("statSort");
+  sortSel.innerHTML = columns.map(c => '<option value="' + c.key + '">Rank by ' + c.label + "</option>").join("");
+  sortSel.value = statsSort;
+
+  const records = gatherRecords(which);
   const rows = Object.entries(records).map(([pid, list]) => {
     const s = summarisePlayer(list);
     return {
@@ -1050,7 +1080,7 @@ function renderStats(){
       name: cfg.roster?.[pid]?.name || "?",
       pickedUp: s.pickedUp,
       holesPlayed: s.holesPlayed,
-      bucket: statsBasis === "gross" ? s.gross : s.net
+      bucket: { ...(basis === "gross" ? s.gross : s.net), counted: s.counted }
     };
   }).filter(r => r.holesPlayed > 0);
 
@@ -1072,13 +1102,16 @@ function renderStats(){
   const lowScore = bestBy("toPar", "low");
   const mostBirdies = bestBy("birdies", "high");
   const mostOver = bestBy("doubles", "high");
-  const label = statsBasis === "gross" ? "Gross" : "Net";
+  const carried = bestBy("counted", "high");
+  const mostHoles = bestBy("holes", "high");
 
   const cards = [
-    { cap: "Best " + label.toLowerCase(), who: lowScore.name, val: fmtToPar(lowScore.bucket.toPar) },
+    { cap: "Best " + basis, who: lowScore.name, val: fmtToPar(lowScore.bucket.toPar) },
     { cap: "Most birdies", who: mostBirdies.name, val: mostBirdies.bucket.birdies },
     { cap: "Most doubles+", who: mostOver.name, val: mostOver.bucket.doubles },
-    { cap: "Holes played", who: bestBy("holes", "high").name, val: bestBy("holes", "high").bucket.holes }
+    scope.counted
+      ? { cap: "Carried the team", who: carried.name, val: carried.bucket.counted + " holes" }
+      : { cap: "Holes played", who: mostHoles.name, val: mostHoles.bucket.holes }
   ];
   highlights.innerHTML = cards.map(c =>
     '<div class="hl"><div class="cap">' + esc(c.cap) + '</div>' +
@@ -1086,7 +1119,7 @@ function renderStats(){
     '<div class="who">' + esc(c.who) + "</div></div>").join("");
 
   // ---- ranked table ----
-  const col = STAT_COLUMNS.find(c => c.key === statsSort) || STAT_COLUMNS[0];
+  const col = columns.find(c => c.key === statsSort) || columns[0];
   rows.sort((a, b) => {
     const d = col.best === "low"
       ? a.bucket[col.key] - b.bucket[col.key]
@@ -1096,23 +1129,23 @@ function renderStats(){
 
   table.innerHTML =
     '<table class="statgrid"><tr><th></th><th class="name">Player</th>' +
-    STAT_COLUMNS.map(c => "<th>" + c.label + "</th>").join("") + "</tr>" +
+    columns.map(c => "<th>" + c.label + "</th>").join("") + "</tr>" +
     rows.map((r, i) =>
       '<tr><td class="rank">' + (i + 1) + '</td><td class="name">' + esc(r.name) + "</td>" +
-      STAT_COLUMNS.map(c => {
+      columns.map(c => {
         const v = c.key === "toPar" ? fmtToPar(r.bucket.toPar) : r.bucket[c.key];
         return "<td" + (c.key === statsSort ? ' class="lead"' : "") + ">" + v + "</td>";
       }).join("") + "</tr>").join("") + "</table>";
 
   const picked = rows.reduce((n, r) => n + r.pickedUp, 0);
   note.innerHTML =
-    (statsBasis === "gross"
+    (basis === "gross"
       ? "Gross is the score that counts on each hole, after the round's maximum. "
       : "Net takes off the shots each player gets on each hole. ") +
     "Dbl+ counts <b>holes</b> at double bogey or worse, not strokes dropped. " +
-    "In scramble and alternate shot the pair share one score, so it counts for both partners." +
-    (picked ? " " + picked + " picked-up hole" + (picked === 1 ? " scores" : "s score") +
-      " the round's maximum, in both gross and net." : "");
+    (scope.counted ? "Counted is how many holes a player's score was the one his team used &mdash; both players on a tie. " : "") +
+    (scope.teamBall ? "In scramble and alternate shot the pair share one score, so it counts for both partners. " : "") +
+    (picked ? picked + " picked-up hole" + (picked === 1 ? " scores" : "s score") + " the round's maximum." : "");
 }
 
 /* ---------- tabs ---------- */

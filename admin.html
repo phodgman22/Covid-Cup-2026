@@ -72,6 +72,15 @@ th{color:var(--dim);font-weight:500;}
   border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px;font-size:13px;margin:2px 4px 2px 0;}
 .member-x{background:none;border:none;color:var(--dim);padding:0 5px;font-size:15px;line-height:1;cursor:pointer;}
 .member-x:hover{color:var(--danger);}
+.fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;}
+.fmt-card{text-align:left;background:var(--surface2);border:1px solid var(--line);border-radius:10px;
+  padding:12px;cursor:pointer;color:var(--text);}
+.fmt-card b{display:block;font-size:15px;margin-bottom:4px;}
+.fmt-card span{display:block;font-size:12px;color:var(--muted);line-height:1.35;}
+.fmt-card.selected{border-color:var(--accent);background:var(--accent-dim);box-shadow:inset 0 0 0 1px var(--accent);}
+.seg-admin{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.seg-admin button{border:none;border-radius:0;background:var(--surface2);color:var(--dim);padding:9px 18px;}
+.seg-admin button.active{background:var(--accent);color:#241d08;font-weight:600;}
 </style>
 </head>
 <body>
@@ -98,11 +107,27 @@ th{color:var(--dim);font-weight:500;}
   </div>
 
   <div class="card">
+    <h2>Format</h2>
+    <p>Pick the game first &mdash; everything below adjusts to it. Every game can be played
+      <b>net</b> (with handicaps) or <b>gross</b> (straight strokes, no handicaps).</p>
+    <div class="fmt-grid" id="formatFamilies"></div>
+    <div class="row" style="margin:12px 0 0;align-items:center;">
+      <div style="flex:0 0 auto;min-width:0;">
+        <div class="seg-admin" id="formatBasis">
+          <button type="button" data-gross="0">Net</button>
+          <button type="button" data-gross="1">Gross</button>
+        </div>
+      </div>
+      <div><p class="hint" id="formatSummary" style="margin:0;"></p></div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Event</h2>
     <div class="row">
       <div><label>Event name</label><input id="eventName" placeholder="Covid Cup 2026"></div>
     </div>
-    <div class="row">
+    <div class="row" id="hcpRow">
       <div>
         <label>Handicap allowance</label>
         <input id="allowancePct" type="number" min="0" max="100" step="5">
@@ -114,7 +139,7 @@ th{color:var(--dim);font-weight:500;}
           <option value="off-lowest">Off lowest &mdash; best player plays scratch</option>
         </select>
       </div>
-      <div>
+      <div id="teamHcpField">
         <label>Team handicaps (scramble / alt shot)</label>
         <select id="teamHcpMode">
           <option value="formula">Formula per team</option>
@@ -122,11 +147,13 @@ th{color:var(--dim);font-weight:500;}
         </select>
       </div>
     </div>
-    <p class="hint">Allowance applies to every player's course handicap, which the app calculates
+    <p class="hint" id="hcpHint">Allowance applies to every player's course handicap, which the app calculates
       from the tee's rating and slope. A player can override the percentage on his own row below.</p>
+    <p class="hint hidden" id="grossNote">Gross format &mdash; straight strokes, so handicaps and allowances
+      aren't used. Handicap indexes stay on the roster in case you switch to net.</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="weightsCard">
     <h2>Team handicap weightings</h2>
     <p>For the formats that play one ball per team. Each row is a group size, and the
       boxes run from the <b>lowest handicap in the group</b> to the highest &mdash; so
@@ -208,7 +235,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/fireba
 import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, courseHandicap, playingHandicaps,
-         DEFAULT_TEAM_WEIGHTS, weightsFor, MAX_SCORE_RULES, DEFAULT_MAX_RULE } from "./scoring.js";
+         DEFAULT_TEAM_WEIGHTS, weightsFor, MAX_SCORE_RULES, DEFAULT_MAX_RULE,
+         FORMAT_FAMILIES, DEFAULT_FORMAT, formatFor, formatOf } from "./scoring.js";
 import { ACCEPTED_PINS } from "./admin-pins.js";
 
 
@@ -222,7 +250,7 @@ if (FIREBASE_CONFIGURED) {
 }
 
 const state = {
-  event:   { name: "Covid Cup 2026", allowancePct: 90, allowanceMode: "full", teamHcpMode: "formula" },
+  event:   { name: "Covid Cup 2026", format: DEFAULT_FORMAT, allowancePct: 90, allowanceMode: "full", teamHcpMode: "formula" },
   courses: {}, // id -> { name, location, holesCount, holes:[{number,par,si,yards}], tees:[{name,rating,slope,yards}] }
   roster:  {}, // id -> { name, index, tee, code, allowancePct? }
   rounds:  {}, // id -> { name, courseId, format, order }
@@ -498,6 +526,7 @@ function renderRounds(){
         <div>
           <label>Format</label>
           <select data-rf="format">
+            <option value="" ${!r.format ? "selected" : ""}>Event format &mdash; ${esc(FORMATS[eventFormat()].label)}</option>
             ${Object.entries(FORMATS).map(([key, f]) =>
               `<option value="${key}" ${r.format === key ? "selected" : ""}>${esc(f.label)}</option>`).join("")}
           </select>
@@ -535,11 +564,11 @@ function renderRounds(){
           <input data-rf="ldHoles" inputmode="numeric" placeholder="e.g. 6" value="${esc(r.ldHoles || "")}">
         </div>` : ""}
       </div>
-      <p class="hint">${FORMATS[r.format]?.unit === "player"
+      <p class="hint">${FORMATS[formatOf(r, state.event)]?.unit === "player"
         ? "Each player gets his own leaderboard line in this round."
         : "Each team is scored as one unit in this round."}
-        ${FORMATS[r.format]?.entry === "team"
-          ? " One score entered per group per hole."
+        ${FORMATS[formatOf(r, state.event)]?.entry === "team"
+          ? " One score entered per team per hole."
           : " One score entered per player per hole."}</p>
     </div>`).join("");
 
@@ -550,13 +579,14 @@ function renderRounds(){
       state.rounds[id][rf] = inp.type === "checkbox" ? inp.checked : inp.value;
       // Free-typed fields keep focus; anything that changes the card's shape re-renders it.
       if (!["name", "maxPlus", "ctpHoles", "ldHoles"].includes(rf)) renderRounds();
+      if (rf === "format"){ renderFormat(); renderWeights(); }
       renderGroupRoundSelect(); renderGroups();
     }));
     box.querySelector("[data-del-round]").addEventListener("click", () => {
       delete state.rounds[id];
       delete state.groups[id];
       delete state.teeTimes[id];
-      renderRounds(); renderGroups();
+      renderRounds(); renderGroups(); renderFormat(); renderWeights();
     });
   });
 
@@ -581,7 +611,7 @@ function renderGroupRoundSelect(){
 // formats have no teams — every player on the roster is his own entry, keyed "p-<id>".
 function unitsForAdmin(roundId){
   const round = state.rounds[roundId];
-  if (FORMATS[round?.format]?.unit === "player"){
+  if (FORMATS[formatOf(round, state.event)]?.unit === "player"){
     const out = {};
     Object.keys(state.roster).forEach(pid => { out["p-" + pid] = { playerIds: [pid] }; });
     return out;
@@ -603,7 +633,8 @@ function renderGroups(){
     return;
   }
 
-  const individual = FORMATS[round.format]?.unit === "player";
+  const roundFormat = formatOf(round, state.event);
+  const individual = FORMATS[roundFormat]?.unit === "player";
   state.groups[roundId] = state.groups[roundId] || {};
   state.teeTimes[roundId] = state.teeTimes[roundId] || {};
   const teams = state.groups[roundId];
@@ -619,13 +650,14 @@ function renderGroups(){
   if (individual){
     teamsHtml = `
       <h3>1. Teams</h3>
-      <p class="hint" style="margin:0 0 12px;">${esc(FORMATS[round.format].label)} is an individual format &mdash;
+      <p class="hint" style="margin:0 0 12px;">${esc(FORMATS[roundFormat].label)} is an individual format &mdash;
         every player competes on his own, so there are no teams to build. Go straight to tee times.</p>`;
   } else {
     const inTeam = new Set(Object.values(teams).flatMap(g => g.playerIds || []));
     const free = Object.entries(state.roster).filter(([id]) => !inTeam.has(id));
     teamsHtml = `
       <h3>1. Teams &mdash; who plays together for the score</h3>
+      <p class="hint" style="margin:0 0 10px;">${esc(TEAM_SIZE_HINT[FORMATS[roundFormat].family] || "")}</p>
       <div class="checklist" id="unassignedList">
         ${free.length ? free.map(([id, p]) => `
           <label class="check-item ${selectedForGroup.has(id) ? "selected" : ""}" data-id="${id}">
@@ -776,7 +808,7 @@ function rankLabel(i, size){
 
 function renderWeights(){
   const wrap = document.getElementById("weightEditor");
-  wrap.innerHTML = WEIGHT_FORMATS.map(fmt => `
+  wrap.innerHTML = WEIGHT_FORMATS.filter(fmt => usedFormats().includes(fmt)).map(fmt => `
     <div class="sub-card" data-wfmt="${fmt}">
       <h3>${esc(FORMATS[fmt].label)}</h3>
       ${WEIGHT_SIZES.map(size => {
@@ -820,6 +852,77 @@ document.getElementById("resetWeightsBtn").addEventListener("click", () => {
   renderWeights();
 });
 
+/* ---------- format ---------- */
+
+const eventFormat = () => state.event.format || DEFAULT_FORMAT;
+
+const TEAM_SIZE_HINT = {
+  "best-ball": "Best ball is usually played in 2-man teams.",
+  "shamble": "Shamble is usually played in teams of 2 to 4.",
+  "scramble": "Scramble is usually played in teams of 2 to 4.",
+  "alternate-shot": "Alternate shot is played in 2-man teams.",
+  "total": "Every score on the team counts, so any team size works."
+};
+
+// Every format actually in play: the event's, plus any round that overrides it.
+function usedFormats(){
+  const list = Object.values(state.rounds).map(r => formatOf(r, state.event));
+  return [...new Set([eventFormat(), ...list])];
+}
+
+// Older saves stored a format on every round and none on the event. Adopt the first
+// round's as the event format, and let rounds that match it simply follow the event.
+function normaliseFormats(){
+  if (!state.event.format){
+    const first = Object.values(state.rounds)[0]?.format;
+    state.event.format = FORMATS[first] ? first : DEFAULT_FORMAT;
+  }
+  Object.values(state.rounds).forEach(r => { if (r.format === state.event.format) r.format = ""; });
+}
+
+function setEventFormat(next){
+  const previous = eventFormat();
+  // Rounds following the event keep following it; a round deliberately given a different
+  // format keeps its own.
+  Object.values(state.rounds).forEach(r => { if (!r.format || r.format === previous) r.format = ""; });
+  state.event.format = next;
+  renderAll();
+}
+
+function renderFormat(){
+  const current = FORMATS[eventFormat()] || FORMATS[DEFAULT_FORMAT];
+
+  const box = document.getElementById("formatFamilies");
+  box.innerHTML = Object.entries(FORMAT_FAMILIES).map(([fam, info]) => `
+    <button type="button" class="fmt-card ${current.family === fam ? "selected" : ""}" data-family="${fam}">
+      <b>${esc(info.label)}</b><span>${esc(info.blurb)}</span>
+    </button>`).join("");
+  box.querySelectorAll("[data-family]").forEach(btn => btn.addEventListener("click", () =>
+    setEventFormat(formatFor(btn.dataset.family, current.gross))));
+
+  document.querySelectorAll("#formatBasis button").forEach(btn => {
+    btn.classList.toggle("active", (btn.dataset.gross === "1") === current.gross);
+    btn.onclick = () => setEventFormat(formatFor(current.family, btn.dataset.gross === "1"));
+  });
+
+  document.getElementById("formatSummary").innerHTML =
+    "<b>" + esc(current.label) + "</b> &mdash; " +
+    (current.gross ? "straight strokes, no handicaps."
+      : current.teamHcp ? "one team ball, netted off a combined team handicap."
+      : "each player plays off his own handicap.") +
+    (current.unit === "player" ? " Every player has his own leaderboard line." : " Teams are scored as one unit.");
+
+  // The sections below follow the formats actually in play.
+  const formats = usedFormats().map(k => FORMATS[k]).filter(Boolean);
+  const anyNet = formats.some(f => !f.gross);
+  const anyTeamBall = formats.some(f => f.teamHcp);
+  document.getElementById("hcpRow").classList.toggle("hidden", !anyNet);
+  document.getElementById("hcpHint").classList.toggle("hidden", !anyNet);
+  document.getElementById("grossNote").classList.toggle("hidden", anyNet);
+  document.getElementById("teamHcpField").classList.toggle("hidden", !anyTeamBall);
+  document.getElementById("weightsCard").classList.toggle("hidden", !anyTeamBall);
+}
+
 function renderEvent(){
   document.getElementById("eventName").value = state.event.name || "";
   document.getElementById("allowancePct").value = state.event.allowancePct ?? 100;
@@ -828,7 +931,8 @@ function renderEvent(){
 }
 
 function renderAll(){
-  renderEvent(); renderWeights(); renderCourses(); renderPlayerTeeOptions();
+  normaliseFormats();
+  renderFormat(); renderEvent(); renderWeights(); renderCourses(); renderPlayerTeeOptions();
   renderRoster(); renderRounds(); renderGroups();
 }
 
@@ -849,7 +953,7 @@ document.getElementById("addRoundBtn").addEventListener("click", () => {
   state.rounds[uid()] = {
     name: `Round ${Object.keys(state.rounds).length + 1}`,
     courseId: firstCourse,
-    format: "best-ball-net",
+    format: "",   // follow the event format
     maxScore: DEFAULT_MAX_RULE,
     order: Object.keys(state.rounds).length
   };
