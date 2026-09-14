@@ -3,6 +3,9 @@
 Context for whoever (or whichever Claude) picks this up next. Read this before making
 changes — a couple of the design choices below aren't obvious from the code alone.
 
+For what changed recently and what's left before the event, see
+[HANDOFF-FOR-PAT.md](HANDOFF-FOR-PAT.md).
+
 ## What this is
 
 A static, no-build web app for scoring golf events. It was forked from a much larger KHC
@@ -12,28 +15,26 @@ There is no match play and no team-vs-team. If you're tempted to add them, that'
 certainly the wrong direction.
 
 It started as a single-round, twosomes-only app. It is now generalised: **any number of
-rounds, any number of courses, and groups of any size** (twosomes, threesomes, foursomes,
+rounds, any number of courses, and teams of any size** (twosomes, threesomes, foursomes,
 mixed). That generalisation is deliberate — Covid Cup is a real event, but it doubles as
 the test bed for a customisable tournament framework, so hard-coding one event's shape is
 the thing to avoid.
 
 **Covid Cup itself is 2-man team net best ball, stroke play, double par maximum.** Set it
-up as one round, format Best ball (net), with every group a 2-man team. Two teams playing
-together on the course are still two groups — give them the same tee time, and either
-player's phone can keep both cards using "Scoring for" on the scorecard.
+up as one round in Best ball (net), build the 2-man teams, then put teams into tee times.
+Two teams playing together are two teams in one tee time, and one phone keeps both cards.
 
 ## Live URLs
 
 - Player view: https://phodgman22.github.io/Covid-Cup-2026/
 - Commissioner console: https://phodgman22.github.io/Covid-Cup-2026/admin.html
-  (PIN is the `ADMIN_PIN` constant near the top of the `<script type="module">` in
-  admin.html — it's plain text in public source, so it's a "keep casual players out"
-  gate, not real security)
+  (codes are in `admin-pins.js` — `ADMIN_PIN` plus `DEV_PINS`. They're plain text in public
+  source, so this is a "keep casual players out" gate, not real security)
 
-> **Before the event: delete `DEV_PINS` in admin.html.** `ADM1` and `ADM2` are short
+> **Before the event: delete `DEV_PINS` in `admin-pins.js`.** `ADM1` and `ADM2` are short
 > codes added so Andrew and Pat could get in quickly while building. Unlike the real PIN
 > they're guessable without viewing source, and this console can rewrite the course, the
-> roster and every pairing. They are fine now and a liability on tournament day.
+> roster and every team. They are fine now and a liability on tournament day.
 
 Once a code is accepted the console stays unlocked for that browser tab (sessionStorage), so
 a refresh doesn't ask again. Typing a console code on the player screen unlocks it too before
@@ -48,19 +49,23 @@ minute or two, no build step, no CI.
 
 No bundler, no framework:
 
-- **`index.html`** — player-facing. Code-gated login, then three tabs: Home (rounds and
-  groups), Scorecard (enter your group's hole-by-hole scores for a chosen round), and
-  Leaderboard (per round, or Overall). Reads everything from Firebase via `onValue`.
-- **`admin.html`** — commissioner-facing, PIN-gated. Event settings, courses, roster,
-  rounds, and per-round groups. Writes to Firebase on "Save all".
-- **`scoring.js`** — pure functions, no DOM or Firebase. Handicap math, stroke allocation,
-  and per-format hole scoring. If you're checking or extending the scoring math, this is
-  the only file that should need touching.
+- **`index.html`** — player-facing. Code-gated login, then four tabs: Home (rounds, contests
+  and tee times), Scorecard (one card per tee time, hole by hole or the full card),
+  Leaderboard (the clubhouse board), and Stats. Reads everything from Firebase via `onValue`.
+- **`admin.html`** — commissioner-facing, code-gated. Format, event and handicap settings,
+  team weightings, spreadsheet import/export, courses, players, rounds (max score, contests),
+  and teams & tee times. Writes to Firebase on "Save all".
+- **`scoring.js`** — pure functions, no DOM or Firebase. Formats, handicap math, stroke
+  allocation, max score, hole scoring and statistics. If you're checking or extending the
+  scoring math, this is the only file that should need touching.
+- **`admin-pins.js`** — the console codes, shared by both pages so a code typed on the player
+  screen can redirect to the console.
 - **`firebase-config.js`** — shared Firebase client config. The API key here is meant to
   be public (Firebase security is enforced by database rules, not by hiding this file).
 - **`serve.js`** — minimal static server for local testing (`node serve.js`, then
   http://localhost:8765). Needed because module scripts and `fetch()` won't work off
   `file://`.
+- **`tests/`** — the scoring test suite. See Testing below.
 
 ## Formats
 
@@ -85,11 +90,12 @@ team weightings only show when a net scramble or alternate shot is being played.
 
 Two independent axes are kept separate on purpose: **what a format does to a hole**
 (`entry`) versus **who ends up on the leaderboard** (`unit`). The original KHC app fused
-them, which is exactly what made it impossible to reuse. Adding a format should mean
-adding a row to `FORMATS` and a branch in `computeHoleResult` — nothing else.
+them, which is exactly what made it impossible to reuse. A net or gross version of an existing
+game is just a row in `FORMATS`; a genuinely new game also needs a branch in
+`computeHoleResult`, which branches on `family`.
 
 A round can still override the event format, so a five-round trip can be scramble on day one
-and singles on day five. Groups are per round too, so pairings can change day to day.
+and singles on day five. Teams and tee times are per round too, so they can change day to day.
 
 **Best ball and shamble wait for every partner** before a hole counts. The first score in
 can look like the team's result and then change when the partner's lands, so nothing is
@@ -120,9 +126,10 @@ rewritten, when a round's format changes, so switching back and forth doesn't wi
   `allowancePct`, which overrides it.
 - **Allowance basis** is a choice: `full` (each player off his own handicap) or
   `off-lowest` (everyone drops by the lowest in the field, so the best player plays scratch).
-- **Team handicaps** (scramble / alternate shot only) are a separate choice: `formula`
-  (standard weightings — 35/15 for a pair, 20/15/10 for three, 25/20/15/10 for four;
-  alternate shot is 50% of combined) or `off-lowest` (every team drops by the lowest team's).
+- **Team handicaps** (net scramble / alternate shot only) are a separate choice: `formula` or
+  `off-lowest` (every team drops by the lowest team's). The formula weightings are editable in
+  the console (`event.teamWeights`), ranked lowest handicap to highest; defaults are 35/15 for a
+  pair, 20/15/10 for three, 25/20/15/10 for four, and alternate shot is 50% of combined.
 - **Maximum score is set per round** (`round.maxScore`, plus `round.maxPlus` for
   "par-plus"): double par (the default), net double bogey, triple bogey, par plus N, or
   none. Every rule resolves to a *gross* cap for one player on one hole — see `grossCap()`.
@@ -144,36 +151,36 @@ on every course. A player who plays different tees on different courses isn't su
 
 ```
 /covidcup
-  /event    { name, allowancePct, allowanceMode, teamHcpMode }
+  /event    { name, format, allowancePct, allowanceMode, teamHcpMode, teamWeights? }
   /courses  { <courseId>: { name, location, holesCount,
                             holes: [{number, par, si}], tees: [{name, rating, slope, yards}] } }
-  /roster   { <playerId>: { name, index, tee, code, allowancePct? } }
+  /roster   { <playerId>: { name, index, tee, email, code, allowancePct? } }
   /rounds   { <roundId>: { name, courseId, format, order, maxScore, maxPlus?,
                            ctpOn, ctpHoles, ldOn, ldHoles } }
   /groups   { <roundId>: { <teamId>: { playerIds: [...] } } }          teams (team formats)
   /teeTimes { <roundId>: { <teeTimeId>: { start, unitIds: [...] } } }  who goes out together
 
 /covidcup_scores
-  /<roundId>/<groupId>/<holeNumber>
+  /<roundId>/<teamId or p-playerId>/<holeNumber>
     { <playerId>: { v, x } }        player-entry formats
     { team:       { v, x } }        scramble / alternate shot
 ```
 
 `v` is the gross strokes (or null). `x` is a boolean — the ball was picked up. Scores are
-keyed by **real player id**, and `scoring.js` now takes real ids directly (via `memberIds`
-plus `playerPhs`), so the old generic `{a, b}` remapping is gone along with the class of
-bug it caused.
+keyed by **real player id**, and `scoring.js` takes real ids directly (via `memberIds` plus
+`playerPhs`), so the old generic `{a, b}` remapping is gone along with the class of bug it
+caused.
 
 Firebase project is `covid-cup-2026`, owned by Patrick's Google account
 (phodgman22@gmail.com); Andrew has Editor access.
 
 ## Database rules
 
-`database.rules.json` replaces the wide-open test-mode default, which Firebase
-auto-expires on **Oct 1, 2026** (at which point it denies everything and the app silently
-stops working). Deploy with `firebase deploy --only database`, or paste into the console's
-Realtime Database → Rules tab. **Merging the file does not deploy it** — that's a separate,
-manual step.
+`database.rules.json` was **published to the live project by Andrew on 2026-09-09** (pasted
+into Firebase console → Realtime Database → Rules), replacing the wide-open test-mode default.
+That means the Oct 1, 2026 test-mode expiry no longer applies — as long as the console still
+shows these rules. Deploy changes with `firebase deploy --only database`, or paste into the
+Rules tab. **Editing or merging the file does not deploy it** — that's a separate, manual step.
 
 What it does:
 
@@ -184,13 +191,13 @@ What it does:
   they start as `{}`, and **Firebase never persists an empty object as a child**, so
   requiring them would reject the very first legitimate save. This is easy to get wrong.
 - `/covidcup_scores` grants write only at the per-hole level, matching how
-  `queueScoreWrite()` writes. Nobody can replace a whole group's card or the scores tree
+  `queueScoreWrite()` writes. Nobody can replace a whole team's card or the scores tree
   in one shot.
 - Hole scores validate as numbers 1–15; `x` validates as a boolean; anything else is refused.
 
 **There is still no real access control.** Without Firebase Auth, rules cannot tell the
 commissioner from a player, or one player from another. Anyone with the link can edit any
-group's scores. This stops accidents, not a determined person.
+team's scores. This stops accidents, not a determined person.
 
 ## Spreadsheet setup
 
@@ -200,7 +207,7 @@ sheets, one row per thing, so it stays obvious to someone editing it in Excel:
 - **Courses** — Course, Location, Holes (9 or 18), Tee, Rating, Slope, Yards.
   One row per *tee*, with the course name repeated.
 - **Holes** — Course, Hole, Par, Stroke index.
-- **Players** — Player, Handicap index, Tee.
+- **Players** — Player, Handicap index, Tee, Email.
 
 The download includes whatever is already entered, so it doubles as an export. Uploading
 **replaces** courses and players wholesale.
@@ -215,7 +222,7 @@ Things that are load-bearing here:
 - The name itself is taken **from the sheet**, so fixing a spelling there fixes it here.
 - A course listed in Courses but absent from Holes still gets a default card, so it's
   scoreable rather than silently broken.
-- Players dropped from the sheet are removed from any groups they were in, and a round
+- Players dropped from the sheet are removed from any teams they were in, and a round
   whose course disappeared falls back to the first remaining course.
 - Header matching is deliberately loose — real files come back with different casing and
   stray punctuation once a human has been in them.
@@ -226,9 +233,11 @@ module script that uses it.
 ## Scorecard
 
 On eggshell stock rather than the dark theme, so it reads clearly outdoors. The palette is
-redefined on the scorecard card, so everything inside flips together. **Scoring moves one hole at a time:** any hole can be
-looked at, but holes after the first one missing a score are view-only until every player on
-that hole has a score or Picked up. Going back to fix a hole is always allowed.
+redefined on the scorecard card, so everything inside flips together.
+
+**Scoring moves one hole at a time:** any hole can be looked at, but holes after the first one
+missing a score are view-only until every player on that hole has a score or Picked up. Going
+back to fix a hole is always allowed. View-only holes render no scoring buttons at all.
 
 ## Closest to the pin and long drive
 
@@ -257,7 +266,8 @@ is also an Overall board by player; with one round the round picker is hidden.
 ## Player codes
 
 Each player gets a four-character code, generated in admin.html when he's added. Ambiguous
-characters (0/O, 1/I/L, etc.) are excluded so codes are easy to read off a screen.
+characters (0/O, 1/I/L, etc.) are excluded so codes are easy to read off a screen. "Send code"
+on a roster row opens the commissioner's own mail app with the link and code filled in.
 
 **Codes are name tags, not passwords.** The whole roster ships to every phone, so anyone
 can read all of them out of the page. They solve "which player am I", nothing more.
@@ -269,29 +279,39 @@ can read all of them out of the page. They solve "which player am I", nothing mo
    write before it reached Firebase. Fixed by keying the debounce per
    `${roundId}|${groupId}|${hole}|${field}` (see `writeTimers` in index.html).
 
-2. **Stale scores reference left the running total at zero.** The scorecard captured
+2. **Stale scores reference left the running total at zero.** The scorecard once captured
    `scores[roundId][groupId]`, but the first entry on a fresh card *creates* that object,
-   so the captured reference stayed empty forever and "thru" never moved off 0.
-   `updateScoreTotals()` now reads the live object each time. If you refactor it, don't
-   reintroduce a captured copy.
+   so the captured reference stayed empty forever and "thru" never moved off 0. The
+   scorecard now reads the live scores object every time (`cellFor()`, `unitScores()`).
+   Don't reintroduce a captured copy.
 
 3. **Key mismatch between storage and scoring.js** (historical). Storage was keyed by real
    player id while scoring.js expected generic `{a, b}`, which silently produced `thru: 0`.
    Structurally gone now that scoring.js takes real ids — keep it that way.
+
+4. **Look-ahead holes killed navigation.** View-only holes render no Picked up or Clear
+   buttons, but the Clear button was still wired up unconditionally; that threw, and Next and
+   the hole strip never got their handlers. Anything wiring up the hole view must tolerate a
+   missing button.
 
 ## Known gaps (not bugs, just not built yet)
 
 - **No anonymous auth.** Locking rules to `auth != null` would keep out anyone not using
   the app, and costs nothing. Requires enabling Anonymous sign-in in the Firebase console
   **before** the tightened rules deploy, or the app breaks.
-- **No invites.** A static app can't send SMS or email — that needs a server and a paid
-  service. The cheap version is a "text this player" button that opens the commissioner's
-  own messaging app with the code and link pre-filled.
+- **No SMS.** A static app can't send messages on its own. Email works through `mailto:` —
+  "Send code" hands a pre-filled message to the commissioner's own mail app.
+- **No round submit / attest / lock step**, unlike the Michigan app.
 - **No per-course tee selection** for a player (see Handicaps above).
 - **No admin-side leaderboard** — the commissioner uses the player-facing one.
 
 ## Testing
 
-`node serve.js`, then http://localhost:8765. The scoring math has no DOM or network
-dependency, so it can be exercised directly by importing `scoring.js` in Node — worth
-doing for any change to handicaps, allowances, or a format.
+- **App:** `node serve.js`, then http://localhost:8765. With the real `firebase-config.js`
+  this reads and writes the **live** database. To test without touching live data,
+  temporarily set `apiKey: "REPLACE_ME"` — the app then runs off browser storage — and never
+  commit that change.
+- **Scoring:** `node tests/run.mjs` runs every assertion over `scoring.js` — formats, gross vs
+  net, handicaps, team weightings, max score, pickups, Counted and stats. No install needed;
+  it requires Node 22.12 or newer, which loads `scoring.js` as an ES module without a
+  `package.json`. Run it after any change to the scoring math.
