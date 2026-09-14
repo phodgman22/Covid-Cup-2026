@@ -128,49 +128,86 @@ export function strokesOnHole(playingHcp, strokeIndex, holeCount = 18){
   return Math.floor((ph - strokeIndex) / holeCount) + 1;
 }
 
-// A picked-up ball scores net double bogey — par, plus two, plus any strokes received.
+// Net double bogey expressed as a GROSS score: par, plus two, plus any strokes received.
 export function netDoubleBogey(par, strokes){
   return (+par || 0) + 2 + strokes;
 }
 
-/* ---------- hole scoring ---------- */
+/* ---------- maximum score ---------- */
 
-// One player's gross and net on a hole. Returns null if nothing was entered.
-// A picked-up ball (x) always resolves to net double bogey.
-function playerHole(entry, par, strokes, holeCount){
-  if (!entry) return null;
-  if (entry.x) {
-    const net = netDoubleBogey(par, strokes);
-    return { gross: null, net, pickedUp: true };
+// Every rule resolves to a GROSS cap for one player on one hole, since that's what gets
+// compared with the number somebody typed. `plus` only matters for "par-plus".
+export const MAX_SCORE_RULES = {
+  "net-double-bogey": { label: "Net double bogey (par + 2 + shots)" },
+  "double-par":       { label: "Double par" },
+  "triple-bogey":     { label: "Triple bogey (par + 3)" },
+  "par-plus":         { label: "Par plus a set number" },
+  "none":             { label: "No maximum — every hole holed out" }
+};
+export const DEFAULT_MAX_RULE = "net-double-bogey";
+
+export function grossCap(rule = DEFAULT_MAX_RULE, par, shots = 0, plus = 4){
+  const p = +par || 0;
+  switch (rule){
+    case "none":         return null;
+    case "double-par":   return p * 2;
+    case "triple-bogey": return p + 3;
+    case "par-plus":     return p + (+plus || 0);
+    default:             return netDoubleBogey(p, shots);
   }
-  if (entry.v == null) return null;
-  return { gross: entry.v, net: entry.v - strokes, pickedUp: false };
 }
+
+/**
+ * One entered cell ({v, x}) as the score that actually counts on the hole, for whoever
+ * receives `shots` there. Returns null if nothing usable has been entered.
+ *
+ * - A picked-up ball scores the round's maximum. With no maximum set there is nothing to
+ *   give it, so it falls back to net double bogey rather than silently scoring zero.
+ * - A typed score above the maximum counts as the maximum. The typed number stays in
+ *   storage, so changing a round's rule later re-scores the card correctly.
+ * - Net is always gross minus shots. Net double bogey's NET value is par + 2; the
+ *   par + 2 + shots figure is its gross equivalent. Treating that gross figure as net
+ *   scored every pickup one stroke too harshly for anyone getting a shot on the hole.
+ */
+export function scoreCell(cell, par, shots, maxRule, maxPlus){
+  if (!cell) return null;
+  const cap = grossCap(maxRule, par, shots, maxPlus);
+
+  if (cell.x){
+    const gross = cap ?? netDoubleBogey(par, shots);
+    return { gross, net: gross - shots, pickedUp: true, capped: false };
+  }
+  if (cell.v == null) return null;
+  const capped = cap != null && cell.v > cap;
+  const gross = capped ? cap : cell.v;
+  return { gross, net: gross - shots, pickedUp: false, capped };
+}
+
+/* ---------- hole scoring ---------- */
 
 /**
  * One hole's result for a group (or for a single player, in individual formats).
  *
  * hole:  { number, par, si }
  * entry: { <playerId>: {v, x}, team: {v, x} }
- * ctx:   { memberIds, playerPhs, teamPh, holeCount }
+ * ctx:   { memberIds, playerPhs, teamPh, holeCount, maxRule, maxPlus }
  *
  * Returns null when not enough has been entered to score the hole yet, otherwise
  * { net, gross } — gross is null for formats that only make sense net.
  */
 export function computeHoleResult(format, hole, entry, ctx){
-  const { memberIds = [], playerPhs = {}, teamPh = 0, holeCount = 18 } = ctx || {};
+  const { memberIds = [], playerPhs = {}, teamPh = 0, holeCount = 18, maxRule, maxPlus } = ctx || {};
   const par = +hole.par || 0;
   const si = +hole.si || 0;
 
   if (FORMATS[format]?.entry === "team"){
-    const teamStrokes = strokesOnHole(teamPh, si, holeCount);
-    const res = playerHole(entry?.team, par, teamStrokes, holeCount);
+    const res = scoreCell(entry?.team, par, strokesOnHole(teamPh, si, holeCount), maxRule, maxPlus);
     if (!res) return null;
     return { net: res.net, gross: res.gross };
   }
 
   const results = memberIds
-    .map(id => playerHole(entry?.[id], par, strokesOnHole(playerPhs[id], si, holeCount), holeCount))
+    .map(id => scoreCell(entry?.[id], par, strokesOnHole(playerPhs[id], si, holeCount), maxRule, maxPlus))
     .filter(Boolean);
 
   if (!results.length) return null;
@@ -184,14 +221,12 @@ export function computeHoleResult(format, hole, entry, ctx){
   }
   if (format === "total-gross"){
     if (results.length < memberIds.length) return null;
-    if (results.some(r => r.gross == null)) return null;
     return { net: results.reduce((s, r) => s + r.gross, 0), gross: null };
   }
   if (format === "individual-net"){
     return { net: results[0].net, gross: results[0].gross };
   }
   if (format === "individual-gross"){
-    if (results[0].gross == null) return null;
     return { net: results[0].gross, gross: results[0].gross };
   }
   return null;
@@ -235,13 +270,14 @@ export function fmtToPar(toPar){
 
 /**
  * Every hole a player has a score on in one round, as
- * { playerId: [{ hole, par, gross, net, pickedUp }] }.
+ * { playerId: [{ hole, par, gross, net, pickedUp, capped }] }, with the round's maximum
+ * score already applied — the same numbers the leaderboard counts.
  *
  * In scramble and alternate shot the pair share a single score, so that score is
  * credited to BOTH partners — otherwise a man who played four team rounds would show
  * no statistics at all.
  */
-export function collectPlayerHoles(format, holes, groups, roundScores, playerPhs, teamPhs, holeCount = 18){
+export function collectPlayerHoles(format, holes, groups, roundScores, playerPhs, teamPhs, holeCount = 18, maxRule, maxPlus){
   const out = {};
   const teamEntry = FORMATS[format]?.entry === "team";
 
@@ -255,22 +291,11 @@ export function collectPlayerHoles(format, holes, groups, roundScores, playerPhs
 
       memberIds.forEach(pid => {
         const cell = teamEntry ? entry.team : entry[pid];
-        if (!cell) return;
         // A team score is netted off the team handicap, an individual one off his own.
         const ph = teamEntry ? (teamPhs?.[gid] ?? 0) : (playerPhs?.[pid] ?? 0);
-        const shots = strokesOnHole(ph, h.si, holeCount);
-
-        if (cell.x){
-          (out[pid] = out[pid] || []).push({
-            hole: h.number, par: h.par, gross: null,
-            net: netDoubleBogey(h.par, shots), pickedUp: true
-          });
-        } else if (cell.v != null){
-          (out[pid] = out[pid] || []).push({
-            hole: h.number, par: h.par, gross: cell.v,
-            net: cell.v - shots, pickedUp: false
-          });
-        }
+        const res = scoreCell(cell, h.par, strokesOnHole(ph, h.si, holeCount), maxRule, maxPlus);
+        if (!res) return;
+        (out[pid] = out[pid] || []).push({ hole: h.number, par: h.par, ...res });
       });
     });
   });
@@ -293,10 +318,8 @@ function addToBucket(bucket, strokes, par){
 /**
  * Roll a player's hole records into gross and net summaries.
  *
- * A picked-up ball has no gross — the player never holed out — so it is left out of the
- * gross figures entirely and counted separately. It does carry a net score (net double
- * bogey), which is the same number the leaderboard already uses, so net totals stay
- * complete. "Doubles" counts HOLES at double bogey or worse, not strokes dropped.
+ * A picked-up ball scores the round's maximum in both, so gross and net always cover the
+ * same holes. "Doubles" counts HOLES at double bogey or worse, not strokes dropped.
  */
 export function summarisePlayer(records){
   const gross = emptyBucket();
@@ -305,7 +328,7 @@ export function summarisePlayer(records){
 
   (records || []).forEach(r => {
     if (r.pickedUp) pickedUp += 1;
-    else addToBucket(gross, r.gross, r.par);
+    addToBucket(gross, r.gross, r.par);
     addToBucket(net, r.net, r.par);
   });
 

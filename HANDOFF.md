@@ -85,9 +85,19 @@ day five. Groups are per round too, so pairings can change day to day.
 - **Team handicaps** (scramble / alternate shot only) are a separate choice: `formula`
   (standard weightings — 35/15 for a pair, 20/15/10 for three, 25/20/15/10 for four;
   alternate shot is 50% of combined) or `off-lowest` (every team drops by the lowest team's).
-- A **picked-up ball** scores net double bogey — par + 2 + strokes received. In best ball
-  and shamble that means a pickup simply loses to any real score, which is the intent.
-  `total-gross` refuses a pickup outright, since there's no gross number to add.
+- **Maximum score is set per round** (`round.maxScore`, plus `round.maxPlus` for
+  "par-plus"): net double bogey (the default), double par, triple bogey, par plus N, or
+  none. Every rule resolves to a *gross* cap for one player on one hole — see `grossCap()`.
+  A typed score above the cap counts as the cap; a picked-up ball scores the cap. What
+  was typed stays in storage, so changing a round's rule later re-scores it correctly.
+  With "none" the Picked up button is hidden, since real stroke play has no pickup.
+- **All scoring goes through `scoreCell()`** — leaderboard, scorecard, full card and
+  stats. Keep it that way; the next bug below is what happens when two places each
+  work out a pickup for themselves.
+- **Net double bogey's net value is par + 2.** `netDoubleBogey()` returns par + 2 +
+  shots, which is its *gross* equivalent. An earlier version stored that gross figure as
+  the net score, so every pickup by a player receiving a shot on the hole was scored one
+  stroke too harshly. Net is always gross minus shots.
 
 Player tees are matched **by name** across courses, so use the same tee name (e.g. "White")
 on every course. A player who plays different tees on different courses isn't supported yet.

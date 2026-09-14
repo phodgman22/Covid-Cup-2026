@@ -37,10 +37,14 @@ button.link{background:none;border:none;color:var(--accent);padding:2px 4px;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;}
 th{color:var(--dim);font-weight:500;}
-.hole-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;}
-.hole-cell{background:var(--surface3);border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;}
-.hole-cell label{margin:0;font-size:10px;}
-.hole-cell input{padding:4px;text-align:center;}
+.nine{display:flex;gap:4px;overflow-x:auto;margin-bottom:10px;padding-bottom:4px;}
+.nine-labels,.nine-col{display:flex;flex-direction:column;gap:4px;}
+.nine-labels{flex:0 0 92px;position:sticky;left:0;background:var(--surface2);z-index:1;}
+.nine-labels span,.nine-num{height:34px;display:flex;align-items:center;font-size:12px;color:var(--dim);}
+.nine-col{flex:1 0 46px;min-width:46px;}
+.nine-num{justify-content:center;color:var(--text);font-weight:600;}
+.nine-col input{height:34px;padding:2px;text-align:center;}
+#playerList{overflow-x:auto;}
 .code-pill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface3);
   border:1px solid var(--line);border-radius:6px;padding:2px 8px;letter-spacing:.12em;font-size:12px;}
 .tee-row,.group-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
@@ -204,7 +208,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/fireba
 import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, courseHandicap, playingHandicaps,
-         DEFAULT_TEAM_WEIGHTS, weightsFor } from "./scoring.js";
+         DEFAULT_TEAM_WEIGHTS, weightsFor, MAX_SCORE_RULES, DEFAULT_MAX_RULE } from "./scoring.js";
 import { ACCEPTED_PINS } from "./admin-pins.js";
 
 
@@ -295,16 +299,21 @@ function renderCourses(){
       </div>
       <button data-add-tee="${id}" style="margin:8px 0 14px;">+ Add tee</button>
 
-      <h3>Holes &mdash; par and stroke index</h3>
-      <div class="hole-grid">
-        ${(c.holes || []).map(h => `
-          <div class="hole-cell">
-            <label>Hole ${h.number}</label>
-            <input type="number" min="3" max="6" value="${h.par}" data-hole="${h.number}" data-hf="par">
-            <input type="number" min="1" max="${(c.holes || []).length}" value="${h.si}" data-hole="${h.number}" data-hf="si" style="margin-top:3px;">
-          </div>`).join("")}
-      </div>
-      <p class="hint">Par ${coursePar(c.holes)} &middot; top box is par, bottom box is stroke index.</p>
+      <h3>Holes</h3>
+      ${[[1, 9], [10, 18]].map(([lo, hi]) => {
+        const nine = (c.holes || []).filter(h => h.number >= lo && h.number <= hi);
+        if (!nine.length) return "";
+        return `<div class="nine">
+          <div class="nine-labels"><span>Hole</span><span>Par</span><span>Stroke index</span></div>
+          ${nine.map(h => `
+            <div class="nine-col">
+              <span class="nine-num">${h.number}</span>
+              <input type="number" min="3" max="6" value="${h.par}" data-hole="${h.number}" data-hf="par">
+              <input type="number" min="1" max="${(c.holes || []).length}" value="${h.si}" data-hole="${h.number}" data-hf="si">
+            </div>`).join("")}
+        </div>`;
+      }).join("")}
+      <p class="hint">Par ${coursePar(c.holes)}</p>
     </div>
   `).join("");
 
@@ -387,8 +396,8 @@ function renderRoster(){
       const ch = displayCourseHandicap(p);
       return `<tr data-id="${id}">
         <td><input value="${esc(p.name)}" data-pf="name" placeholder="Name" style="min-width:120px;"></td>
-        <td><input type="number" step="0.1" value="${p.index ?? 0}" data-pf="index" style="max-width:78px;"></td>
-        <td><select data-pf="tee" style="max-width:110px;">${allTeeNames().map(n =>
+        <td><input type="number" step="0.1" value="${p.index ?? 0}" data-pf="index" style="min-width:84px;max-width:96px;"></td>
+        <td><select data-pf="tee" style="min-width:112px;">${allTeeNames().map(n =>
               `<option value="${esc(n)}" ${n === p.tee ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></td>
         <td data-ch>${ch == null ? "&mdash;" : ch}</td>
         <td><input type="number" min="0" max="100" placeholder="&mdash;" value="${p.allowancePct ?? ""}" data-pf="allowancePct" style="max-width:72px;"></td>
@@ -496,6 +505,19 @@ function renderRounds(){
           <button class="danger" data-del-round="${id}">Remove</button>
         </div>
       </div>
+      <div class="row">
+        <div>
+          <label>Maximum score per hole</label>
+          <select data-rf="maxScore">
+            ${Object.entries(MAX_SCORE_RULES).map(([key, m]) =>
+              `<option value="${key}" ${(r.maxScore || DEFAULT_MAX_RULE) === key ? "selected" : ""}>${esc(m.label)}</option>`).join("")}
+          </select>
+        </div>
+        ${r.maxScore === "par-plus" ? `<div style="flex:0 0 120px;">
+          <label>Par plus</label>
+          <input type="number" min="1" max="10" data-rf="maxPlus" value="${r.maxPlus ?? 4}">
+        </div>` : ""}
+      </div>
       <p class="hint">${FORMATS[r.format]?.unit === "player"
         ? "Each player gets his own leaderboard line in this round."
         : "The group is scored as one unit in this round."}
@@ -508,7 +530,7 @@ function renderRounds(){
     const id = box.dataset.round;
     box.querySelectorAll("[data-rf]").forEach(inp => inp.addEventListener("input", () => {
       state.rounds[id][inp.dataset.rf] = inp.value;
-      if (inp.dataset.rf !== "name") renderRounds();
+      if (inp.dataset.rf !== "name" && inp.dataset.rf !== "maxPlus") renderRounds();
       renderGroupRoundSelect(); renderGroups();
     }));
     box.querySelector("[data-del-round]").addEventListener("click", () => {
@@ -708,6 +730,7 @@ document.getElementById("addRoundBtn").addEventListener("click", () => {
     name: `Round ${Object.keys(state.rounds).length + 1}`,
     courseId: firstCourse,
     format: "best-ball-net",
+    maxScore: DEFAULT_MAX_RULE,
     order: Object.keys(state.rounds).length
   };
   renderRounds(); renderGroups();

@@ -199,7 +199,8 @@ import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/fireb
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
          computeHoleResult, roundTotals, fmtToPar, strokesOnHole,
-         collectPlayerHoles, summarisePlayer } from "./scoring.js";
+         collectPlayerHoles, summarisePlayer,
+         scoreCell, grossCap, DEFAULT_MAX_RULE } from "./scoring.js";
 import { isAdminCode } from "./admin-pins.js";
 
 const DB_PATH = "covidcup";
@@ -242,7 +243,8 @@ function roundContext(roundId){
                     cfg.event?.teamWeights)
     : {};
 
-  return { round, course, groups, playerPhs, teamPhs, holeCount: (course.holes || []).length };
+  return { round, course, groups, playerPhs, teamPhs, holeCount: (course.holes || []).length,
+           maxRule: round.maxScore || DEFAULT_MAX_RULE, maxPlus: round.maxPlus };
 }
 
 function myGroupIn(roundId){
@@ -313,15 +315,15 @@ function currentCard(){
   const [gid, group] = myGroupIn(roundId);
   if (!gid) return { roundId, base, gid: null };
 
-  const { round, course, playerPhs, teamPhs, holeCount } = base;
+  const { round, course, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = base;
   const memberIds = group.playerIds || [];
   const teamEntry = FORMATS[round.format]?.entry === "team";
 
   return {
-    roundId, gid, group, round, course, holeCount,
+    roundId, gid, group, round, course, holeCount, maxRule, maxPlus,
     format: round.format,
     holes: course.holes || [],
-    ctx: { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount },
+    ctx: { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount, maxRule, maxPlus },
     // One column per player, or a single team column.
     fields: teamEntry
       ? [{ key: "team", label: "Team", ph: teamPhs[gid] ?? 0 }]
@@ -381,12 +383,13 @@ function renderHoleView(body, c){
   const entries = c.fields.map(f => {
     const cell = entry[f.key] || {};
     const shots = strokesOnHole(f.ph, hole.si, c.holeCount);
+    const cap = grossCap(c.maxRule, hole.par, shots, c.maxPlus);
     const picked = !!cell.x;
     return '<div class="entry" data-field="' + esc(f.key) + '">' +
       '<span class="who">' + esc(f.label) +
         '<span class="shots">' +
           (shots ? shots + " shot" + (shots > 1 ? "s" : "") + " here" : "no shot here") +
-          " &middot; plays off " + f.ph +
+          " &middot; plays off " + f.ph + (cap != null ? " &middot; max " + cap : "") +
         '</span>' +
       '</span>' +
       '<span class="big-box">' +
@@ -396,7 +399,7 @@ function renderHoleView(body, c){
         (shots ? '<span class="dot ' + (shots > 1 ? "two" : "") + '"></span>' : "") +
       '</span>' +
       '<span class="acts">' +
-        '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>' +
+        (cap == null && !picked ? "" : '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>') +
         '<button data-clear>Clear</button>' +
       '</span>' +
     '</div>';
@@ -443,7 +446,7 @@ function renderHoleView(body, c){
       if (raw.length >= 2 || (raw.length === 1 && raw !== "1")) inputs[i + 1]?.focus();
     });
 
-    row.querySelector("[data-pickup]").addEventListener("click", () => {
+    row.querySelector("[data-pickup]")?.addEventListener("click", () => {
       const now = !!(cardScores(c)[hole.number]?.[field]?.x);
       queueScoreWrite(c.roundId, c.gid, hole.number, field, now ? { v: null, x: false } : { v: null, x: true }, true);
     });
@@ -490,30 +493,27 @@ function renderFullCard(body, c){
   const back = c.holes.filter(h => h.number > 9);
 
   const sumPar = hs => hs.reduce((s, h) => s + (+h.par || 0), 0);
-  const grossFor = (f, h) => {
-    const cell = groupScores[h.number]?.[f.key];
-    if (!cell) return null;
-    return cell.x ? "X" : (cell.v ?? null);
-  };
-  // A picked-up hole has no gross to add, so the column total can't be a true gross.
-  // Mark it rather than quietly printing a number that's short by a hole.
+  // The score that COUNTS in each cell, after the round's maximum — the same number the
+  // leaderboard uses, so the card and the leaderboard can never disagree.
+  const countedFor = (f, h) => scoreCell(
+    groupScores[h.number]?.[f.key], h.par,
+    strokesOnHole(f.ph, h.si, c.holeCount), c.maxRule, c.maxPlus
+  );
   const sumGross = (f, hs) => {
-    let total = 0, played = 0, picked = 0;
+    let total = 0, any = false;
     hs.forEach(h => {
-      const g = grossFor(f, h);
-      if (typeof g === "number"){ total += g; played++; }
-      else if (g === "X") picked++;
+      const res = countedFor(f, h);
+      if (res){ total += res.gross; any = true; }
     });
-    if (!played && !picked) return "";
-    return picked ? total + "*" : total;
+    return any ? total : "";
   };
 
   const playerCells = (f, hs) => hs.map(h => {
-    const g = grossFor(f, h);
-    if (g == null) return "<td></td>";
-    if (g === "X") return '<td><span class="mark double">X</span></td>';
-    const cls = markClass(g, h.par);
-    return "<td>" + (cls ? '<span class="mark ' + cls + '">' + g + "</span>" : g) + "</td>";
+    const res = countedFor(f, h);
+    if (!res) return "<td></td>";
+    if (res.pickedUp) return '<td><span class="mark double">X</span></td>';
+    const cls = markClass(res.gross, h.par);
+    return "<td>" + (cls ? '<span class="mark ' + cls + '">' + res.gross + "</span>" : res.gross) + "</td>";
   }).join("");
 
   const section = (hs, label) => !hs.length ? "" :
@@ -539,7 +539,7 @@ function renderFullCard(body, c){
     "</div>" +
     '<p style="font-size:12px;color:var(--dim);margin-top:10px;">' +
       "Circle = birdie &middot; double circle = eagle &middot; box = bogey &middot; double box = double or worse. " +
-      "Numbers are gross; the team total is net. A total marked * has a picked-up hole in it, so it is not a full gross." +
+      "Numbers are the gross that counts, after the round's maximum; X is a picked-up ball, scored at the maximum. The team total is net." +
     "</p>";
 }
 
@@ -572,7 +572,7 @@ function queueScoreWrite(roundId, groupId, hole, field, value, immediate = false
 function rowsForRound(roundId){
   const ctxBase = roundContext(roundId);
   if (!ctxBase) return [];
-  const { round, course, groups, playerPhs, teamPhs, holeCount } = ctxBase;
+  const { round, course, groups, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = ctxBase;
   const format = round.format;
   const holes = course.holes || [];
   const byPlayer = FORMATS[format]?.unit === "player";
@@ -585,12 +585,12 @@ function rowsForRound(roundId){
     if (byPlayer){
       memberIds.forEach(pid => {
         const t = roundTotals(format, holes, groupScores,
-          { memberIds: [pid], playerPhs, teamPh: 0, holeCount });
+          { memberIds: [pid], playerPhs, teamPh: 0, holeCount, maxRule, maxPlus });
         rows.push({ key: pid, names: cfg.roster?.[pid]?.name || "?", playerIds: [pid], ...t });
       });
     } else {
       const t = roundTotals(format, holes, groupScores,
-        { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount });
+        { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount, maxRule, maxPlus });
       rows.push({
         key: gid,
         names: memberIds.map(pid => cfg.roster?.[pid]?.name || "?").join(" / "),
@@ -666,10 +666,10 @@ function gatherRecords(which){
   rounds.forEach(roundId => {
     const base = roundContext(roundId);
     if (!base) return;
-    const { round, course, groups, playerPhs, teamPhs, holeCount } = base;
+    const { round, course, groups, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = base;
     const recs = collectPlayerHoles(
       round.format, course.holes || [], groups,
-      scores?.[roundId] || {}, playerPhs, teamPhs, holeCount
+      scores?.[roundId] || {}, playerPhs, teamPhs, holeCount, maxRule, maxPlus
     );
     Object.entries(recs).forEach(([pid, list]) => {
       (all[pid] = all[pid] || []).push(...list);
@@ -757,12 +757,12 @@ function renderStats(){
   const picked = rows.reduce((n, r) => n + r.pickedUp, 0);
   note.innerHTML =
     (statsBasis === "gross"
-      ? "Gross is what was actually holed out. "
+      ? "Gross is the score that counts on each hole, after the round's maximum. "
       : "Net takes off the shots each player gets on each hole. ") +
     "Dbl+ counts <b>holes</b> at double bogey or worse, not strokes dropped. " +
     "In scramble and alternate shot the pair share one score, so it counts for both partners." +
-    (picked ? " " + picked + " picked-up hole" + (picked === 1 ? " is" : "s are") +
-      " left out of the gross figures — there's no gross for a hole nobody finished — but counted in net as net double bogey." : "");
+    (picked ? " " + picked + " picked-up hole" + (picked === 1 ? " scores" : "s score") +
+      " the round's maximum, in both gross and net." : "");
 }
 
 /* ---------- tabs ---------- */
