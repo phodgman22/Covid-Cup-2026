@@ -36,10 +36,10 @@ Two teams playing together are two teams in one tee time, and one phone keeps bo
 > they're guessable without viewing source, and this console can rewrite the course, the
 > roster and every team. They are fine now and a liability on tournament day.
 
-Once a code is accepted the console stays unlocked for that browser tab (sessionStorage), so
-a refresh doesn't ask again. Typing a console code on the player screen unlocks it too before
-redirecting — previously it redirected straight into a second code prompt, which looked
-exactly like the code being refused. The code box is plain text on purpose: browsers autofill
+Once a code is accepted, commissioner access is remembered on that device (`covidcup_admin` in
+localStorage, shared by the console and the player app), so a refresh, or moving between the
+two, doesn't ask again. Typing a console code on the player login turns on **commissioner mode**
+(below); Exit in the commissioner bar forgets it. The code box is plain text on purpose: browsers autofill
 saved passwords into password fields, which mangles what gets typed.
 
 Deployed via GitHub Pages from `main`/root — any push to `main` goes live within a
@@ -184,6 +184,9 @@ on every course. A player who plays different tees on different courses isn't su
   /teeTimes { <roundId>: { <teeTimeId>: { start, unitIds: [...] } } }  who goes out together
   /matches  { <roundId>: { <matchId>: { unitIds: [a, b] } } }          match play only
 
+/covidcup_attest
+  /<roundId>/<teamId or p-playerId>   { by: playerId or "commissioner", name, at }   a submitted card
+
 /covidcup_scores
   /<roundId>/<teamId or p-playerId>/<holeNumber>
     { <playerId>: { v, x } }        player-entry formats
@@ -218,6 +221,9 @@ What it does:
   `queueScoreWrite()` writes. Nobody can replace a whole team's card or the scores tree
   in one shot.
 - Hole scores validate as numbers 1–15; `x` validates as a boolean; anything else is refused.
+- `/covidcup_attest` (added 2026-09-14 — **publish it**) allows one team's submission at a time,
+  carrying `by`, `name` and a numeric `at`, or its removal. Until it's published, Submit card
+  fails with a permission error; scoring and everything else keep working.
 
 **There is still no real access control.** Without Firebase Auth, rules cannot tell the
 commissioner from a player, or one player from another. Anyone with the link can edit any
@@ -288,6 +294,34 @@ is also an Overall board by player; with one round the round picker is hidden. M
 show a match board (each match's status) and a points table instead. Tapping any row opens that
 team's, player's or match's full card in a pop-up.
 
+## Commissioner mode
+
+The commissioner uses the player app as well as the console. A console code typed on the player
+login — or into "Commissioner login" at the bottom of a player's screen — turns on commissioner
+mode (`isAdmin` in index.html):
+
+- A bar across the top links to the console and sets **Playing as**, so a commissioner who is
+  also playing still gets his own card by default. The console has a Player app link back.
+- The Scorecard tab gets a card picker: every tee time, plus any team not in one.
+- Every card can be edited, **including submitted ones**, and a submitted card can be reopened.
+- The leaderboard pop-up has **Edit this card**, which opens that card on the Scorecard tab.
+
+Players still only ever see their own card.
+
+## Submitting a card
+
+Once every hole on a card has a score or pickup, the card offers **Review & submit** — as a banner
+above the hole buttons, and in place of the Next button on the last hole. The review shows the full
+card and totals, a "checked every score" tick box, and Submit. Submitting writes
+`covidcup_attest/<roundId>/<teamId>` = `{ by, name, at }` for every team on the card.
+
+- A submitted team is **locked for players**: no score boxes or buttons, and `queueScoreWrite()`
+  refuses the write as well. The commissioner can still edit it, or **Reopen card**, which deletes
+  the submission so the card has to be submitted again.
+- The leaderboard shows a ✓ beside Thru for submitted cards, and the pop-up says who submitted.
+- The lock lives in the app, not the rules — without auth the rules can't tell the commissioner
+  from a player, and locking in the rules would lock him out too.
+
 ## Player codes
 
 Each player gets a four-character code, generated in admin.html when he's added. Ambiguous
@@ -326,7 +360,7 @@ can read all of them out of the page. They solve "which player am I", nothing mo
   **before** the tightened rules deploy, or the app breaks.
 - **No SMS.** A static app can't send messages on its own. Email works through `mailto:` —
   "Send code" hands a pre-filled message to the commissioner's own mail app.
-- **No round submit / attest / lock step**, unlike the Michigan app.
+- **Submitted cards are locked in the app only** (see Submitting a card).
 - **No per-course tee selection** for a player (see Handicaps above).
 - **No admin-side leaderboard** — the commissioner uses the player-facing one.
 

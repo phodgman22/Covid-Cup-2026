@@ -121,6 +121,34 @@ table.lboard td.mstatus{font-size:19px;white-space:nowrap;}
 .modal-box h3{margin:6px 34px 8px 0;font-size:16px;}
 .modal-box .modal-card + h3{margin-top:22px;}
 .modal-x{position:absolute;top:6px;right:10px;background:none;border:none;font-size:28px;line-height:1;color:#556070;cursor:pointer;}
+.modal-edit{margin:0 0 10px;background:#1c2330;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;}
+.modal-status{font-size:12px;color:#2e6a3b;margin:-4px 0 8px;}
+/* commissioner mode */
+.adminbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 16px;background:#3a2410;
+  border-bottom:1px solid #6b4a1c;color:#e8c98a;font-size:13px;}
+.adminbar b{letter-spacing:.06em;text-transform:uppercase;font-size:11px;}
+.adminbar label{display:flex;gap:6px;align-items:center;}
+.adminbar select{width:auto;max-width:170px;margin:0;padding:5px 8px;font-size:13px;background:#241708;border-color:#6b4a1c;color:#f3dfae;}
+.adminbar a,.adminbar button{color:#f3dfae;background:none;border:1px solid #6b4a1c;border-radius:6px;padding:5px 10px;
+  font-size:12px;cursor:pointer;text-decoration:none;}
+#adminUnlock{display:flex;gap:8px;justify-content:center;margin-top:8px;}
+#adminUnlock input{width:120px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;
+  padding:6px 8px;text-transform:uppercase;text-align:center;}
+/* review & submit */
+.attest-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0;
+  background:var(--accent-dim);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);}
+.attest-banner.done{background:#e6f1e8;border-color:#2e6a3b;color:#1f4a29;}
+.attest-banner button{background:#1c2330;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+.attest-banner button.ghost{background:none;color:inherit;border:1px solid currentColor;font-weight:400;}
+.attest-box{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;}
+.attest-box label{display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--text);cursor:pointer;margin-bottom:12px;}
+.attest-box input[type=checkbox]{width:22px;height:22px;margin:0;flex:0 0 auto;}
+.attest-box .submit{width:100%;background:#1c2330;color:#fff;border:none;border-radius:8px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;}
+.attest-box .submit:disabled{opacity:.35;cursor:default;}
+.attest-note{font-size:12px;color:var(--dim);margin:8px 0 0;}
+.review-actions{display:flex;gap:10px;margin-top:14px;}
+.review-actions button{flex:1;padding:11px;background:var(--surface3);border:1px solid var(--line);color:var(--text);border-radius:8px;font-size:14px;cursor:pointer;}
+table.lboard .att{color:#2e6a3b;font-size:.85em;margin-left:3px;}
 
 /* full card */
 .card-scroll{overflow-x:auto;}
@@ -207,6 +235,7 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
   <div class="box">
     <h1>Covid Cup 2026</h1>
     <p style="margin-top:6px;">Enter your player code</p>
+    <p style="margin:-6px 0 12px;font-size:12px;color:var(--dim);">Commissioner? Your console code works here too.</p>
     <input id="codeInput" placeholder="CODE" autocomplete="off" maxlength="8">
     <button class="primary" id="codeSubmit" style="width:100%">Enter</button>
     <p id="codeError" style="color:var(--danger);display:none;margin-top:10px;">Code not recognised</p>
@@ -215,6 +244,12 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
 </div>
 
 <div id="app" class="hidden">
+<div id="adminBar" class="adminbar hidden">
+  <b>Commissioner</b>
+  <label>Playing as <select id="adminPlayAs"></select></label>
+  <a href="admin.html">Console &rarr;</a>
+  <button id="adminExit">Exit</button>
+</div>
 <header>
   <h1 id="eventName">Covid Cup 2026</h1>
   <div class="sub" id="eventSub">Loading event details&hellip;</div>
@@ -243,6 +278,7 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
   <section id="tab-score" class="hidden">
     <div class="card">
       <select id="scoreRoundSelect"></select>
+      <select id="scoreCardSelect" class="hidden"></select>
       <div class="seg">
         <button data-view="hole" class="active">Hole by hole</button>
         <button data-view="card">Full card</button>
@@ -279,12 +315,20 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
     <div id="cardModalBody"></div>
   </div>
 </div>
-<footer id="versionFooter"></footer>
+<footer>
+  <div id="versionFooter"></div>
+  <button class="link" id="adminUnlockBtn" style="font-size:11px;color:var(--dim);margin-top:6px;">Commissioner login</button>
+  <div id="adminUnlock" class="hidden">
+    <input id="adminCodeInput" placeholder="Code" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <button class="primary" id="adminCodeGo" style="padding:6px 12px;">Unlock</button>
+  </div>
+  <p id="adminCodeErr" class="hidden" style="color:var(--danger);font-size:12px;margin:6px 0 0;">Code not recognised</p>
+</footer>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+import { getDatabase, ref, onValue, update, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, playingHandicaps, teamHandicaps,
          computeHoleResult, roundTotals, fmtToPar, strokesOnHole,
@@ -296,12 +340,22 @@ import { isAdminCode } from "./admin-pins.js";
 const DB_PATH = "covidcup";
 const SCORES_PATH = "covidcup_scores";
 const ME_KEY = "covidcup_me";
+const ATTEST_PATH = "covidcup_attest";
+const ADMIN_KEY = "covidcup_admin";
 
 let db = null;
 let cfg = { event: {}, courses: {}, roster: {}, rounds: {}, groups: {} };
 let scores = {};      // roundId -> groupId -> hole -> { playerId|team: {v,x} }
+let attests = {};     // roundId -> teamId -> { by, name, at } once a card is submitted
 let meId = null;
-let scoreView = "hole";   // "hole" or "card"
+let scoreView = "hole";   // "hole", "card" or "review"
+
+// Commissioner mode: every card can be opened and edited, submitted ones included. Codes are
+// name tags rather than security (see admin-pins.js), and the flag is shared with the console.
+let isAdmin = false;
+try {
+  isAdmin = localStorage.getItem(ADMIN_KEY) === "1" || sessionStorage.getItem("covidcup_admin_ok") === "1";
+} catch (e){}
 let loaded = false;
 
 // One debounce timer per field. A single shared timer used to cancel earlier holes'
@@ -474,14 +528,113 @@ function renderScoreTab(){
   renderScorecard();
 }
 
+// Every card in a round, for the commissioner: each tee time, then any team not yet in one.
+function cardOptions(base){
+  const tees = Object.entries(base.teeTimes || {})
+    .map(([id, t]) => ({ id: "t:" + id, start: t.start || "", unitIds: (t.unitIds || []).filter(u => base.units[u]) }))
+    .filter(t => t.unitIds.length)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const placed = new Set(tees.flatMap(t => t.unitIds));
+  const loose = Object.keys(base.units).filter(u => !placed.has(u))
+    .map(u => ({ id: "u:" + u, start: "", unitIds: [u] }));
+  return [...tees, ...loose];
+}
+
+// Which card the commissioner has open, per round. Defaults to his own card if he's playing.
+const adminPick = {};
+
+function adminCard(roundId, base){
+  const options = cardOptions(base);
+  const mine = myUnit(base);
+  return options.find(o => o.id === adminPick[roundId]) ||
+    options.find(o => o.unitIds.includes(mine)) || options[0] || null;
+}
+
+function fillCardSelect(roundId){
+  const sel = document.getElementById("scoreCardSelect");
+  const base = isAdmin ? roundContext(roundId) : null;
+  const options = base ? cardOptions(base) : [];
+  sel.classList.toggle("hidden", !options.length);
+  if (!options.length){ sel.innerHTML = ""; return; }
+  const current = adminCard(roundId, base);
+  const mine = myUnit(base);
+  sel.innerHTML = options.map(o => {
+    const label = (o.start ? o.start + " · " : "") + o.unitIds.map(u => unitLabel(base, u)).join(" / ") +
+      (o.unitIds.includes(mine) ? " (you)" : "") +
+      (o.unitIds.every(u => attestOf(roundId, u)) ? " ✓ submitted" : "");
+    return '<option value="' + esc(o.id) + '"' + (o.id === current?.id ? " selected" : "") + ">" + esc(label) + "</option>";
+  }).join("");
+}
+
+// A player gets his own card; the commissioner gets whichever card he picked.
 function currentCard(){
   const roundId = document.getElementById("scoreRoundSelect").value;
   const base = roundContext(roundId);
   if (!base) return null;
-  const card = myCard(base);
+  const card = isAdmin ? adminCard(roundId, base) : myCard(base);
   if (!card) return { roundId, fields: [] };
   return buildCard(roundId, base, card);
 }
+
+/* ---- submitting a card ---- */
+
+// attests: roundId -> teamId -> { by, name, at }. A submitted team's scores are final for
+// players; the commissioner can still change them, or reopen the card.
+const attestOf = (roundId, unitId) => attests?.[roundId]?.[unitId] || null;
+const cardComplete = c => c.holes.length > 0 && firstOpenIndex(c) === -1;
+const cardSubmitted = c => c.teams.length > 0 && c.teams.every(t => attestOf(c.roundId, t.unitId));
+const unitLocked = (roundId, unitId) => !isAdmin && !!attestOf(roundId, unitId);
+const attestState = c => (cardComplete(c) ? "c" : "o") + c.teams.filter(t => attestOf(c.roundId, t.unitId)).length;
+
+const whenText = at => at ? new Date(at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "";
+
+function submittedLine(c){
+  const done = c.teams.map(t => ({ t, a: attestOf(c.roundId, t.unitId) })).filter(x => x.a);
+  if (!done.length) return "";
+  const first = done[0].a;
+  return "Submitted by " + esc(first.name || "?") + (first.at ? " &middot; " + esc(whenText(first.at)) : "") +
+    (done.length < c.teams.length ? " (" + done.map(x => esc(x.t.label)).join(", ") + " only)" : "");
+}
+
+// Online, the database listener brings the change back (and undoes it if the write is refused).
+function writeAttest(roundId, unitId, value){
+  if (!db){
+    attests[roundId] = attests[roundId] || {};
+    if (value) attests[roundId][unitId] = value; else delete attests[roundId][unitId];
+    localStorage.setItem("covidcup_attest_draft", JSON.stringify(attests));
+    return Promise.resolve();
+  }
+  return set(ref(db, `${ATTEST_PATH}/${roundId}/${unitId}`), value || null);
+}
+
+// The prompt to review and submit once every hole is in — or who submitted the card.
+function attestBanner(c){
+  if (c.teams.some(t => attestOf(c.roundId, t.unitId))){
+    return '<div class="attest-banner done"><span>&#10003; ' + submittedLine(c) +
+        (isAdmin ? "" : ". Scores are locked &mdash; ask the commissioner for any change.") + "</span>" +
+      (!cardSubmitted(c) && cardComplete(c) ? "<button data-review>Review &amp; submit</button>" : "") +
+      (isAdmin ? '<button class="ghost" data-reopen>Reopen card</button>' : "") +
+    "</div>";
+  }
+  if (!cardComplete(c)) return "";
+  return '<div class="attest-banner"><span><b>All ' + c.holes.length + " holes are in.</b> Check the card, then submit it.</span>" +
+    "<button data-review>Review &amp; submit</button></div>";
+}
+
+function wireBanner(scope, c){
+  scope.querySelectorAll("[data-review]").forEach(b => b.addEventListener("click", () => {
+    scoreView = "review";
+    renderScorecard();
+    window.scrollTo(0, 0);
+  }));
+  scope.querySelectorAll("[data-reopen]").forEach(b => b.addEventListener("click", () => {
+    if (!confirm("Reopen this card? Players will be able to change scores again, and it will need to be submitted again.")) return;
+    Promise.all(c.teams.map(t => writeAttest(c.roundId, t.unitId, null)))
+      .then(() => renderScorecard())
+      .catch(err => alert("Couldn't reopen the card: " + err.message));
+  }));
+}
+
 
 // Everything a scorecard needs for a set of teams: the round, the teams, their matches, and
 // every box — one per player, or one per team in scramble and alternate shot — each tagged
@@ -591,13 +744,25 @@ let currentHole = null;
 
 function renderScorecard(){
   const body = document.getElementById("scorecardBody");
+  fillCardSelect(document.getElementById("scoreRoundSelect").value);
+  document.querySelectorAll("#tab-score .seg button").forEach(b => b.classList.toggle("active", b.dataset.view === scoreView));
   const c = currentCard();
 
   if (!c){ body.innerHTML = '<p class="empty">This round does not have a course set yet.</p>'; return; }
-  if (!c.fields.length){ body.innerHTML = '<p class="empty">You are not on a team for this round yet.</p>'; return; }
+  if (!c.fields.length){
+    body.innerHTML = '<p class="empty">' +
+      (isAdmin ? "No teams are set up for this round yet." : "You are not on a team for this round yet.") + "</p>";
+    return;
+  }
   if (!c.holes.length){ body.innerHTML = '<p class="empty">This round\'s course has no holes set up.</p>'; return; }
 
-  if (scoreView === "card"){ renderFullCard(body, c); return; }
+  if (scoreView === "review"){ renderReview(body, c); return; }
+  if (scoreView === "card"){
+    renderFullCard(body, c);
+    body.insertAdjacentHTML("afterbegin", attestBanner(c));
+    wireBanner(body, c);
+    return;
+  }
 
   // Land on the first unplayed hole rather than making the player hunt for it.
   if (currentHole == null || !c.holes.some(h => h.number === currentHole)){
@@ -606,6 +771,56 @@ function renderScorecard(){
   }
   renderHoleView(body, c);
 }
+
+// Review & submit: the whole card with its totals, then a sign-off. Submitting stamps every
+// team on the card with who submitted it and when, which locks the scores for players.
+function renderReview(body, c){
+  const complete = cardComplete(c);
+  const submitted = cardSubmitted(c);
+  const who = meId ? (cfg.roster?.[meId]?.name || "?") : "Commissioner";
+  const open = c.teams.filter(t => !attestOf(c.roundId, t.unitId));
+
+  body.innerHTML =
+    '<h2 style="margin:0 0 10px;">Review &amp; submit</h2>' +
+    '<div id="reviewCard"></div>' +
+    '<div class="attest-box">' +
+      (submitted
+        ? '<div class="attest-banner done"><span>&#10003; ' + submittedLine(c) + "</span>" +
+            (isAdmin ? '<button class="ghost" data-reopen>Reopen card</button>' : "") + "</div>"
+        : !complete
+          ? '<p class="gate-hint">Hole ' + c.holes[firstOpenIndex(c)].number +
+              " still needs a score for everyone before this card can be submitted.</p>"
+          : '<label><input type="checkbox" id="attestCheck"><span>I\'ve checked every score on this card' +
+              (c.teams.length > 1 ? " &mdash; " + open.map(t => esc(t.label)).join(" and ") + " &mdash;" : "") +
+              " and it's correct.</span></label>" +
+            '<button class="submit" id="attestSubmit" disabled>Submit card as ' + esc(who) + "</button>" +
+            '<p class="attest-note">Once it\'s submitted, scores on this card are locked. Only the commissioner can change them.</p>' +
+            '<p id="attestErr" class="gate-hint hidden"></p>') +
+      '<div class="review-actions"><button data-back>&larr; Back to scoring</button></div>' +
+    "</div>";
+
+  renderFullCard(body.querySelector("#reviewCard"), c);
+  wireBanner(body, c);
+
+  body.querySelector("[data-back]").addEventListener("click", () => { scoreView = "hole"; renderScorecard(); });
+  const check = body.querySelector("#attestCheck");
+  const submit = body.querySelector("#attestSubmit");
+  check?.addEventListener("change", () => { submit.disabled = !check.checked; });
+  submit?.addEventListener("click", () => {
+    submit.disabled = true;
+    const stamp = { by: meId || "commissioner", name: who, at: Date.now() };
+    Promise.all(open.map(t => writeAttest(c.roundId, t.unitId, stamp)))
+      .then(() => renderScorecard())
+      .catch(err => {
+        const e = body.querySelector("#attestErr");
+        if (!e) return;
+        e.textContent = "Couldn't submit the card: " + err.message;
+        e.classList.remove("hidden");
+        submit.disabled = false;
+      });
+  });
+}
+
 
 function renderHoleView(body, c){
   const hole = c.holes.find(h => h.number === currentHole);
@@ -639,6 +854,8 @@ function renderHoleView(body, c){
     const shots = c.gross ? 0 : strokesOnHole(f.ph, hole.si, c.holeCount);
     const cap = grossCap(c.maxRule, hole.par, shots, c.maxPlus);
     const picked = !!cell.x;
+    // Nothing to score on a hole further ahead, or on a card that's been submitted.
+    const noEdit = ahead || unitLocked(c.roundId, f.unitId);
     const header = headed && f.unitId !== lastUnit
       ? '<div class="team-head">' + esc(c.teams.find(t => t.unitId === f.unitId).label) + "</div>" : "";
     lastUnit = f.unitId;
@@ -654,11 +871,11 @@ function renderHoleView(body, c){
         "</span>" +
         '<span class="big-box">' +
           '<input type="' + (picked ? "text" : "number") + '" inputmode="numeric" min="1" max="15"' +
-            ' class="' + (picked ? "picked" : "") + '"' + (picked || ahead ? " disabled" : "") +
+            ' class="' + (picked ? "picked" : "") + '"' + (picked || noEdit ? " disabled" : "") +
             ' value="' + (picked ? "X" : (cell.v ?? "")) + '" data-score>' +
           (shots ? '<span class="dot ' + (shots > 1 ? "two" : "") + '"></span>' : "") +
         "</span>" +
-        (ahead ? "" :
+        (noEdit ? "" :
           '<span class="acts">' +
             (cap == null && !picked ? "" : '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>') +
             "<button data-clear>Clear</button>" +
@@ -680,16 +897,20 @@ function renderHoleView(body, c){
       ? '<p class="gate-hint">Looking ahead &mdash; finish hole ' + openHole + " before scoring this one.</p>"
       : '<p class="gate-hint' + (complete ? " hidden" : "") + '">Every player needs a score' +
           (c.maxRule === "none" ? "" : " or Picked up") + " before the next hole opens for scoring.</p>") +
+    '<div id="attestSlot" data-state="' + attestState(c) + '">' + attestBanner(c) + "</div>" +
     '<div class="nav-holes">' +
       "<button data-prev" + (idx === 0 ? " disabled" : "") + ">&larr; " +
         (idx === 0 ? "Start" : "Hole " + c.holes[idx - 1].number) + "</button>" +
-      '<button data-next class="primary"' + (idx === c.holes.length - 1 ? " disabled" : "") + ">" +
-        (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + " &rarr;</button>" +
+      (idx === c.holes.length - 1 && cardComplete(c) && !cardSubmitted(c)
+        ? '<button data-review class="primary">Review &amp; submit &rarr;</button>'
+        : '<button data-next class="primary"' + (idx === c.holes.length - 1 ? " disabled" : "") + ">" +
+            (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + " &rarr;</button>") +
     "</div>" +
     (c.holes[idx + 1] && contestLabel(c, c.holes[idx + 1].number)
       ? '<p class="next-contest">Next hole: ' + contestLabel(c, c.holes[idx + 1].number) + "</p>" : "") +
-    '<button class="link" id="switchPlayerBtn" style="margin-top:12px;">Not you? Switch player</button>';
+    (isAdmin ? "" : '<button class="link" id="switchPlayerBtn" style="margin-top:12px;">Not you? Switch player</button>');
 
+  wireBanner(body, c);
   const inputs = [...body.querySelectorAll("input[data-score]")];
 
   body.querySelectorAll(".entry").forEach(row => {
@@ -737,7 +958,8 @@ function renderHoleView(body, c){
     currentHole = c.holes[idx + 1]?.number ?? currentHole;
     renderScorecard();
   });
-  document.getElementById("switchPlayerBtn").onclick = () => {
+  const switchBtn = document.getElementById("switchPlayerBtn");
+  if (switchBtn) switchBtn.onclick = () => {
     localStorage.removeItem(ME_KEY);
     location.reload();
   };
@@ -755,6 +977,14 @@ function refreshRunningTotal(c){
     btn.classList.toggle("ahead", openIdx !== -1 && i > openIdx);
   });
   document.querySelector("#scorecardBody .gate-hint")?.classList.toggle("hidden", holeComplete(c, currentHole));
+
+  // The last score in brings up Review & submit without a re-render.
+  const slot = document.getElementById("attestSlot");
+  if (slot && slot.dataset.state !== attestState(c)){
+    slot.dataset.state = attestState(c);
+    slot.innerHTML = attestBanner(c);
+    wireBanner(slot, c);
+  }
 }
 
 function renderFullCard(body, c){
@@ -827,6 +1057,8 @@ function renderFullCard(body, c){
 }
 
 function queueScoreWrite(roundId, groupId, hole, field, value, immediate = false){
+  // A submitted card is final for players, whatever the screen shows.
+  if (unitLocked(roundId, groupId)) return;
   scores[roundId] = scores[roundId] || {};
   scores[roundId][groupId] = scores[roundId][groupId] || {};
   scores[roundId][groupId][hole] = scores[roundId][groupId][hole] || {};
@@ -973,7 +1205,7 @@ function boardShell(sub, inner){
     '<div class="board-title">' + esc(cfg.event?.name || "Covid Cup 2026") + "</div>" +
     (sub ? '<div class="board-sub">' + sub + "</div>" : "") +
     '<div class="board-scroll">' + inner + "</div></div>" +
-    '<p class="board-tip">Tap a name to see the scorecard.</p>';
+    '<p class="board-tip">Tap a name to see the scorecard &middot; &#10003; card submitted</p>';
 }
 
 const fmtPts = p => (Math.floor(p) || (p % 1 ? "" : "0")) + (p % 1 ? "½" : "");
@@ -1013,7 +1245,8 @@ function renderRoundBoard(el, roundId){
           numCell(r.front.thru ? r.front.toPar : null) +
           numCell(back.length && r.back.thru ? r.back.toPar : null) +
           numCell(r.toPar, "tot") +
-          '<td class="thru">' + (r.thru === holes.length ? "F" : r.thru) + "</td>" +
+          '<td class="thru">' + (r.thru === holes.length ? "F" : r.thru) +
+            (attestOf(roundId, r.unitId) ? '<span class="att" title="Card submitted">&#10003;</span>' : "") + "</td>" +
         "</tr>").join("") +
     "</table>";
 
@@ -1055,7 +1288,8 @@ function renderMatchBoard(el, roundId, base){
           side(m.unitIds[0], s.leader === "A") +
           '<td class="num mstatus ' + (s.leader ? "under" : "even") + '">' + statusText(s) + "</td>" +
           side(m.unitIds[1], s.leader === "B") +
-          '<td class="thru">' + (s.finished ? "F" : (s.thru || "&ndash;")) + "</td>" +
+          '<td class="thru">' + (s.finished ? "F" : (s.thru || "&ndash;")) +
+            (m.unitIds.every(u => attestOf(roundId, u)) ? '<span class="att" title="Cards submitted">&#10003;</span>' : "") + "</td>" +
         "</tr>").join("") +
     "</table>";
 
@@ -1184,8 +1418,25 @@ function openCards(sections){
   const valid = sections.filter(Boolean);
   if (!valid.length) return;
   const body = document.getElementById("cardModalBody");
-  body.innerHTML = valid.map((s, i) => "<h3>" + esc(s.heading) + '</h3><div class="modal-card" data-i="' + i + '"></div>').join("");
+  body.innerHTML = valid.map((s, i) => "<h3>" + esc(s.heading) + "</h3>" +
+    (submittedLine(s.c) ? '<p class="modal-status">&#10003; ' + submittedLine(s.c) + "</p>" : "") +
+    (isAdmin ? '<button class="modal-edit" data-edit="' + i + '">Edit this card</button>' : "") +
+    '<div class="modal-card" data-i="' + i + '"></div>').join("");
   body.querySelectorAll(".modal-card").forEach(box => renderFullCard(box, valid[+box.dataset.i].c));
+
+  // The commissioner can jump from any card on the leaderboard straight into editing it.
+  body.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => {
+    const { c } = valid[+btn.dataset.edit];
+    const option = cardOptions(c.base).find(o => o.unitIds.includes(c.teams[0].unitId));
+    if (option) adminPick[c.roundId] = option.id;
+    const sel = document.getElementById("scoreRoundSelect");
+    fillRoundSelect(sel);
+    sel.value = c.roundId;
+    currentHole = null;
+    scoreView = "hole";
+    closeModal();
+    document.querySelector('nav.tabs button[data-tab="score"]').click();
+  }));
   document.getElementById("cardModal").classList.remove("hidden");
 }
 
@@ -1401,7 +1652,17 @@ document.querySelectorAll("nav.tabs button").forEach(btn => {
 });
 
 document.getElementById("homeRoundSelect").addEventListener("change", renderGroupsList);
-document.getElementById("scoreRoundSelect").addEventListener("change", () => { currentHole = null; renderScorecard(); });
+document.getElementById("scoreRoundSelect").addEventListener("change", () => {
+  currentHole = null;
+  if (scoreView === "review") scoreView = "hole";
+  renderScorecard();
+});
+document.getElementById("scoreCardSelect").addEventListener("change", e => {
+  adminPick[document.getElementById("scoreRoundSelect").value] = e.target.value;
+  currentHole = null;
+  if (scoreView === "review") scoreView = "hole";
+  renderScorecard();
+});
 
 document.querySelectorAll(".seg button").forEach(btn => btn.addEventListener("click", () => {
   document.querySelectorAll(".seg button").forEach(b => b.classList.remove("active"));
@@ -1431,23 +1692,47 @@ function findByCode(code){
 function enterApp(){
   document.getElementById("loginGate").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
+  renderAdminBar();
   renderHome();
 }
 
 function trySavedLogin(){
   const saved = localStorage.getItem(ME_KEY);
-  if (saved && cfg.roster?.[saved]){ meId = saved; enterApp(); return true; }
+  if (saved && cfg.roster?.[saved]) meId = saved;
+  if (meId || isAdmin){ enterApp(); return true; }
   return false;
+}
+
+// The commissioner works inside the player app too. A bar across the top says so, links to
+// the console, and sets which player he is if he's also playing.
+function renderAdminBar(){
+  document.getElementById("adminBar").classList.toggle("hidden", !isAdmin);
+  document.getElementById("adminUnlockBtn").classList.toggle("hidden", isAdmin);
+  if (!isAdmin) return;
+  const sel = document.getElementById("adminPlayAs");
+  const players = Object.entries(cfg.roster || {})
+    .sort((a, b) => String(a[1].name || "").localeCompare(String(b[1].name || "")));
+  sel.innerHTML = '<option value="">Not playing</option>' +
+    players.map(([id, p]) => '<option value="' + id + '"' + (id === meId ? " selected" : "") + ">" + esc(p.name) + "</option>").join("");
+}
+
+// Shared with the console, so moving between the two never asks for the code again.
+function unlockAdmin(){
+  isAdmin = true;
+  try {
+    localStorage.setItem(ADMIN_KEY, "1");
+    sessionStorage.setItem("covidcup_admin_ok", "1");
+  } catch (e){}
 }
 
 document.getElementById("codeSubmit").addEventListener("click", () => {
   const entered = document.getElementById("codeInput").value;
 
-  // The two screens look almost identical, so a commissioner typing his console code
-  // here is a routine mistake rather than a wrong code. Send him where he meant to go.
+  // A console code logs in here as the commissioner: every card open and editable, and the
+  // console one tap away in the bar across the top.
   if (isAdminCode(entered)){
-    try { sessionStorage.setItem("covidcup_admin_ok", "1"); } catch (e){}
-    location.href = "admin.html";
+    unlockAdmin();
+    enterApp();
     return;
   }
 
@@ -1461,6 +1746,44 @@ document.getElementById("codeInput").addEventListener("keydown", e => {
   if (e.key === "Enter") document.getElementById("codeSubmit").click();
 });
 
+document.getElementById("adminPlayAs").addEventListener("change", e => {
+  meId = e.target.value || null;
+  if (meId) localStorage.setItem(ME_KEY, meId); else localStorage.removeItem(ME_KEY);
+  currentHole = null;
+  afterData();
+});
+
+document.getElementById("adminExit").addEventListener("click", () => {
+  try {
+    localStorage.removeItem(ADMIN_KEY);
+    sessionStorage.removeItem("covidcup_admin_ok");
+  } catch (e){}
+  location.reload();
+});
+
+// A player's phone can be switched into commissioner mode from the footer.
+document.getElementById("adminUnlockBtn").addEventListener("click", () => {
+  document.getElementById("adminUnlock").classList.toggle("hidden");
+  document.getElementById("adminCodeInput").focus();
+});
+
+function tryAdminCode(){
+  const input = document.getElementById("adminCodeInput");
+  if (!isAdminCode(input.value)){
+    document.getElementById("adminCodeErr").classList.remove("hidden");
+    return;
+  }
+  unlockAdmin();
+  input.value = "";
+  document.getElementById("adminUnlock").classList.add("hidden");
+  document.getElementById("adminCodeErr").classList.add("hidden");
+  currentHole = null;
+  afterData();
+}
+document.getElementById("adminCodeGo").addEventListener("click", tryAdminCode);
+document.getElementById("adminCodeInput").addEventListener("keydown", e => { if (e.key === "Enter") tryAdminCode(); });
+
+
 /* ---------- data wiring ---------- */
 
 function afterData(){
@@ -1471,6 +1794,7 @@ function afterData(){
     trySavedLogin();
   }
   if (!document.getElementById("app").classList.contains("hidden")){
+    renderAdminBar();
     renderHome();
     if (!document.getElementById("tab-score").classList.contains("hidden")) renderScorecard();
     if (!document.getElementById("tab-board").classList.contains("hidden")) renderLeaderboard();
@@ -1489,9 +1813,14 @@ if (FIREBASE_CONFIGURED){
     scores = snap.val() || {};
     afterData();
   });
+  onValue(ref(db, ATTEST_PATH), snap => {
+    attests = snap.val() || {};
+    afterData();
+  }, err => console.warn("Card submissions need the updated database rules:", err.message));
 } else {
   try { cfg = JSON.parse(localStorage.getItem("covidcup_admin_draft") || "null") || cfg; } catch (e){}
   try { scores = JSON.parse(localStorage.getItem("covidcup_scores_draft") || "null") || {}; } catch (e){}
+  try { attests = JSON.parse(localStorage.getItem("covidcup_attest_draft") || "null") || {}; } catch (e){}
   afterData();
 }
 

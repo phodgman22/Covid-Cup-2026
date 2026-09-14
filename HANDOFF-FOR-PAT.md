@@ -11,7 +11,7 @@ reference** and has been kept current alongside the code.
   games, each net or gross), stroke or match play per round, and teams kept separate from tee times.
 - **Covid Cup (planned ~Sep 26)** is one round of **2-man team net best ball, double par max**.
   That's the console's default setup.
-- **It's live and working** — version `2026-09-14.7` on GitHub Pages.
+- **It's live and working** — version `2026-09-14.8` on GitHub Pages.
 - **Database rules were published** by Andrew on Sep 9, so the project is off test mode.
 - The event itself still needs setting up, and a few things must happen before tournament day.
 
@@ -23,7 +23,8 @@ reference** and has been kept current alongside the code.
 | 2 | **Decide the handicap allowance** | Console default is 90%. The USGA recommendation for four-ball stroke play is 85%. |
 | 3 | **Check Firebase → Realtime Database → Rules matches `database.rules.json`** | Andrew pasted it in on Sep 9. If they differ, deploy from the file. Editing the file alone deploys nothing. |
 | 4 | **Set the event up and dry-run it on real phones** | Steps below. Score a few holes with two teams on one tee time, check the leaderboard, then clear the test scores. |
-| 5 | *Optional:* change `ADMIN_PIN` | It's been passed around while building. It's plain text in public source either way. |
+| 5 | **Publish the updated `database.rules.json`** | Submitting a card writes to a new `/covidcup_attest` path. Until the rules are published, Submit card fails; everything else works. |
+| 6 | *Optional:* change `ADMIN_PIN` | It's been passed around while building. It's plain text in public source either way. The same code now also unlocks every scorecard. |
 
 ## Setting up Covid Cup
 
@@ -40,10 +41,15 @@ In the commissioner console (`admin.html`):
 5. **Save all.**
 6. Player codes are in the roster table, next to each player's **Game hcp** — what he actually
    plays off. **Send code** opens your own mail app with the link and code filled in.
+7. **Commissioner mode:** type the console code on the player app's login. A bar across the top
+   links to the console and sets who you're playing as, and the Scorecard tab lets you open and
+   edit any card.
 
 Players open https://phodgman22.github.io/Covid-Cup-2026/ and enter their code. Whoever keeps the
 card for a tee time scores both teams on one phone. The scorecard only ever shows a player's own
-card; everyone else's is a tap away on the leaderboard.
+card; everyone else's is a tap away on the leaderboard. After the last hole the card offers
+**Review & submit**: check the whole card, tick the box, submit. That locks it for players; the
+commissioner can still edit it or reopen it.
 
 ## What changed since your last commit
 
@@ -76,7 +82,9 @@ is his own entry, keyed `p-<playerId>`. See HANDOFF.md for the full shape.
 - **Stays unlocked per browser tab.** Typing a console code on the player screen redirects there, already unlocked.
 
 **Player app.**
-- **Four-character code login.**
+- **Four-character code login.** The console code logs in as the commissioner.
+- **Commissioner mode:** open and edit any card, set who you're playing as, one tap to the console.
+- **Review & submit** after the last hole, which locks the card for players. Submitted cards get a ✓ on the leaderboard.
 - **Hole-by-hole scorecard** on eggshell — only your own card (your tee time), with stroke dots and the max shown.
   You can look at later holes, but you can't score one until the current hole has a score or pickup for everyone.
 - **Full card** with birdie and bogey marks.
@@ -108,7 +116,7 @@ is his own entry, keyed `p-<playerId>`. See HANDOFF.md for the full shape.
   scores. The cheap next step is anonymous Firebase Auth. Enable Anonymous sign-in in the console
   **before** tightening the rules, or the app stops working.
 - **No concessions in match play.** Matches are decided purely on holes played and scored.
-- **No round submit / attest / lock step**, unlike the Michigan app.
+- **Submitted cards are locked in the app, not the database rules.** Without auth the rules can't tell the commissioner from a player.
 - **Contest winners aren't recorded** — closest to the pin and long drive are only flagged on the hole.
 - **No SMS.** Email goes through the commissioner's own mail app.
 - **A player uses the same tee name on every course.** Per-course tee choice isn't supported.

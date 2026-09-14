@@ -20,6 +20,17 @@
       }
     },
 
+    "covidcup_attest": {
+      ".read": true,
+
+      "$roundId": {
+        "$unitId": {
+          ".write": true,
+          ".validate": "!newData.exists() || (newData.hasChildren(['by', 'name', 'at']) && newData.child('at').isNumber())"
+        }
+      }
+    },
+
     "covidcup_scores": {
       ".read": true,
 
