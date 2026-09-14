@@ -128,7 +128,8 @@ table.lboard th.nm,table.lboard td.nm{text-align:left;}
 table.lboard td.nm{padding:6px 10px 3px;}
 .lb-big{font-family:"Pirata One",Georgia,"Times New Roman",serif;font-size:25px;line-height:1;
   text-transform:uppercase;letter-spacing:.02em;color:#161616;}
-.lb-big::first-letter{color:#2e6a3b;font-size:1.5em;}
+.lb-big .sn{white-space:nowrap;}
+.lb-big .cap{color:#2e6a3b;font-size:1.5em;}
 .lb-small{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-size:12px;color:#4a6b55;text-align:right;line-height:1.1;}
 table.lboard td.num{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-weight:700;font-size:23px;line-height:1;min-width:44px;}
 table.lboard td.num.under{color:#c0272d;}
@@ -735,9 +736,15 @@ function positions(rows){
 }
 
 function nameCell(playerIds){
-  const n = boardName(playerIds);
-  return '<td class="nm"><div class="lb-big">' + esc(n.big) + "</div>" +
-    (n.small ? '<div class="lb-small">' + esc(n.small) + "</div>" : "") + "</td>";
+  const names = (playerIds || []).map(id => splitName(cfg.roster?.[id]?.name));
+  // Every surname gets its own drop cap, the way each name is lettered on a board.
+  const big = names.map(n => {
+    const last = String(n.last);
+    return '<span class="sn"><span class="cap">' + esc(last.charAt(0)) + "</span>" + esc(last.slice(1)) + "</span>";
+  }).join(" &amp; ");
+  const small = names.map(n => n.first).filter(Boolean).join(" & ");
+  return '<td class="nm"><div class="lb-big">' + big + "</div>" +
+    (small ? '<div class="lb-small">' + esc(small) + "</div>" : "") + "</td>";
 }
 
 function boardShell(sub, inner){
