@@ -6,6 +6,9 @@
 <title>Covid Cup 2026</title>
 <link rel="manifest" href="site.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Pirata+One&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0a1830; --surface:#0f2038; --surface2:#122845; --surface3:#173058;
@@ -102,12 +105,46 @@ table.statgrid th.name,table.statgrid td.name{text-align:left;}
 table.statgrid td.rank{color:var(--dim);width:22px;}
 table.statgrid td.lead{font-weight:700;color:var(--accent);}
 
-.lb-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
-.lb-row:last-child{border-bottom:none;}
-.lb-rank{width:22px;color:var(--dim);font-size:13px;}
-.lb-names{flex:1;font-size:14px;}
-.lb-thru{font-size:11px;color:var(--dim);}
-.lb-topar{font-size:16px;font-weight:600;min-width:44px;text-align:right;}
+/* Clubhouse leaderboard — a deliberate single look (hand-lettered board on cream stock),
+   so it does not follow the app's dark theme. */
+.board{background:#f4ecd8;color:#161616;border-radius:4px;padding:16px 10px 18px;
+  background-image:radial-gradient(ellipse at 30% 15%, rgba(255,255,255,.6), rgba(255,255,255,0) 60%);
+  box-shadow:inset 0 0 0 1px #d9cca8, 0 12px 28px rgba(0,0,0,.35);}
+.board-title{font-family:"Pirata One",Georgia,"Times New Roman",serif;color:#1f3a78;font-size:36px;line-height:1;
+  display:flex;align-items:center;gap:12px;letter-spacing:.05em;white-space:nowrap;}
+.board-title::before,.board-title::after{content:"";flex:1;height:2px;background:#161616;opacity:.5;}
+.board-sub{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;color:#3f6149;text-align:center;font-size:14px;margin:6px 0 12px;}
+.board-scroll{overflow-x:auto;}
+.board-empty{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;color:#3f6149;text-align:center;font-size:18px;margin:18px 0 6px;}
+table.lboard{width:100%;border-collapse:collapse;}
+table.lboard th,table.lboard td{border:1px solid #a9bba9;text-align:center;padding:3px 5px;vertical-align:middle;}
+table.lboard tr.parrow th{border-top:none;border-left:none;border-right:none;
+  font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-weight:700;color:#2e6a3b;font-size:17px;}
+table.lboard tr.parrow th.nm{text-align:right;font-family:Georgia,"Times New Roman",serif;font-size:11px;
+  color:#161616;letter-spacing:.12em;text-transform:uppercase;}
+table.lboard tr.head th{font-family:Georgia,"Times New Roman",serif;font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:#161616;background:rgba(46,106,59,.07);}
+table.lboard th.nm,table.lboard td.nm{text-align:left;}
+table.lboard td.nm{padding:6px 10px 3px;}
+.lb-big{font-family:"Pirata One",Georgia,"Times New Roman",serif;font-size:25px;line-height:1;
+  text-transform:uppercase;letter-spacing:.02em;color:#161616;}
+.lb-big::first-letter{color:#2e6a3b;font-size:1.5em;}
+.lb-small{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-size:12px;color:#4a6b55;text-align:right;line-height:1.1;}
+table.lboard td.num{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-weight:700;font-size:23px;line-height:1;min-width:44px;}
+table.lboard td.num.under{color:#c0272d;}
+table.lboard td.num.over{color:#2e6a3b;}
+table.lboard td.num.even{color:#161616;}
+table.lboard td.num.dash{color:#9aa99b;font-weight:400;}
+table.lboard td.tot{font-size:30px;min-width:56px;}
+table.lboard td.pos{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-size:17px;width:36px;}
+table.lboard td.thru{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-size:16px;color:#4a6b55;width:40px;}
+@media (max-width:480px){
+  .board-title{font-size:27px;gap:8px;}
+  .lb-big{font-size:18px;}
+  table.lboard td.nm{padding:5px 6px 2px;}
+  table.lboard td.num{font-size:19px;min-width:34px;}
+  table.lboard td.tot{font-size:24px;min-width:42px;}
+}
 
 #loginGate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:20;padding:16px;}
 #loginGate .box{width:300px;text-align:center;}
@@ -159,6 +196,7 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
   <section id="tab-score" class="hidden">
     <div class="card">
       <select id="scoreRoundSelect"></select>
+      <select id="scoreGroupSelect"></select>
       <div class="seg">
         <button data-view="hole" class="active">Hole by hole</button>
         <button data-view="card">Full card</button>
@@ -169,7 +207,6 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
 
   <section id="tab-board" class="hidden">
     <div class="card">
-      <h2>Leaderboard</h2>
       <select id="boardRoundSelect"></select>
       <div id="leaderboardList"><p class="empty">No scores posted yet.</p></div>
     </div>
@@ -302,6 +339,35 @@ function renderGroupsList(){
 
 /* ---------- scorecard ---------- */
 
+// Which team this phone is scoring, per round. Defaults to the player's own team, but can
+// be switched so one phone can keep the card for a foursome made of two 2-man teams.
+const scoringFor = {};
+
+function scoringGroupFor(roundId, groups){
+  const chosen = scoringFor[roundId];
+  if (chosen && groups?.[chosen]) return chosen;
+  return myGroupIn(roundId)[0];
+}
+
+function fillGroupSelect(roundId){
+  const sel = document.getElementById("scoreGroupSelect");
+  const groups = cfg.groups?.[roundId] || {};
+  const entries = Object.entries(groups);
+  if (!entries.length){ sel.classList.add("hidden"); sel.innerHTML = ""; return; }
+  sel.classList.remove("hidden");
+
+  const mine = myGroupIn(roundId)[0];
+  const current = scoringGroupFor(roundId, groups);
+  // Sorted by tee time, so teams going out together sit next to each other in the list.
+  entries.sort((a, b) => String(a[1].start || "").localeCompare(String(b[1].start || "")));
+  sel.innerHTML = (current ? "" : '<option value="">Pick the team you are scoring for</option>') +
+    entries.map(([gid, g]) => {
+      const label = boardName(g.playerIds || []).big +
+        (g.start ? " · " + g.start : "") + (gid === mine ? " (your team)" : "");
+      return '<option value="' + gid + '"' + (gid === current ? " selected" : "") + ">Scoring for " + esc(label) + "</option>";
+    }).join("");
+}
+
 function renderScoreTab(){
   fillRoundSelect(document.getElementById("scoreRoundSelect"));
   renderScorecard();
@@ -312,8 +378,9 @@ function currentCard(){
   const roundId = document.getElementById("scoreRoundSelect").value;
   const base = roundContext(roundId);
   if (!base) return null;
-  const [gid, group] = myGroupIn(roundId);
+  const gid = scoringGroupFor(roundId, base.groups);
   if (!gid) return { roundId, base, gid: null };
+  const group = base.groups[gid];
 
   const { round, course, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = base;
   const memberIds = group.playerIds || [];
@@ -353,10 +420,11 @@ let currentHole = null;
 
 function renderScorecard(){
   const body = document.getElementById("scorecardBody");
+  fillGroupSelect(document.getElementById("scoreRoundSelect").value);
   const c = currentCard();
 
   if (!c){ body.innerHTML = '<p class="empty">This round does not have a course set yet.</p>'; return; }
-  if (!c.gid){ body.innerHTML = '<p class="empty">You are not in a group for this round yet.</p>'; return; }
+  if (!c.gid){ body.innerHTML = '<p class="empty">Pick the team you are scoring for above.</p>'; return; }
   if (!c.holes.length){ body.innerHTML = '<p class="empty">This round\'s course has no holes set up.</p>'; return; }
 
   if (scoreView === "card"){ renderFullCard(body, c); return; }
@@ -568,15 +636,40 @@ function queueScoreWrite(roundId, groupId, hole, field, value, immediate = false
 
 /* ---------- leaderboard ---------- */
 
-// One round's rows, using that round's natural unit (the group, or each player).
+// "Andrew Hanna" -> first "Andrew", last "Hanna". A single word is treated as the last name.
+function splitName(full){
+  const parts = String(full || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return { first: "", last: parts[0] || "?" };
+  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] };
+}
+
+// Board-style name: surnames large, first names small underneath, like a hand-lettered board.
+function boardName(playerIds){
+  const names = (playerIds || []).map(id => splitName(cfg.roster?.[id]?.name));
+  return {
+    big: names.map(n => n.last).join(" & "),
+    small: names.map(n => n.first).filter(Boolean).join(" & ")
+  };
+}
+
+// One round's rows, in that round's natural unit (the group, or each player), with the
+// front and back nine scored separately for the board.
 function rowsForRound(roundId){
   const ctxBase = roundContext(roundId);
   if (!ctxBase) return [];
   const { round, course, groups, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = ctxBase;
   const format = round.format;
   const holes = course.holes || [];
+  const front = holes.filter(h => h.number <= 9);
+  const back = holes.filter(h => h.number > 9);
   const byPlayer = FORMATS[format]?.unit === "player";
   const rows = [];
+
+  const totalsFor = (groupScores, ctx) => ({
+    ...roundTotals(format, holes, groupScores, ctx),
+    front: roundTotals(format, front, groupScores, ctx),
+    back: roundTotals(format, back, groupScores, ctx)
+  });
 
   Object.entries(groups).forEach(([gid, g]) => {
     const memberIds = g.playerIds || [];
@@ -584,13 +677,11 @@ function rowsForRound(roundId){
 
     if (byPlayer){
       memberIds.forEach(pid => {
-        const t = roundTotals(format, holes, groupScores,
-          { memberIds: [pid], playerPhs, teamPh: 0, holeCount, maxRule, maxPlus });
+        const t = totalsFor(groupScores, { memberIds: [pid], playerPhs, teamPh: 0, holeCount, maxRule, maxPlus });
         rows.push({ key: pid, names: cfg.roster?.[pid]?.name || "?", playerIds: [pid], ...t });
       });
     } else {
-      const t = roundTotals(format, holes, groupScores,
-        { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount, maxRule, maxPlus });
+      const t = totalsFor(groupScores, { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount, maxRule, maxPlus });
       rows.push({
         key: gid,
         names: memberIds.map(pid => cfg.roster?.[pid]?.name || "?").join(" / "),
@@ -609,10 +700,11 @@ function rowsOverall(){
     rowsForRound(roundId).forEach(r => {
       if (!r.thru) return;
       r.playerIds.forEach(pid => {
-        const acc = totals.get(pid) || { toPar: 0, thru: 0, rounds: 0 };
+        const acc = totals.get(pid) || { toPar: 0, thru: 0, rounds: 0, byRound: {} };
         acc.toPar += r.toPar;
-        acc.thru  += r.thru;
+        acc.thru += r.thru;
         acc.rounds += 1;
+        acc.byRound[roundId] = r.toPar;
         totals.set(pid, acc);
       });
     });
@@ -620,28 +712,116 @@ function rowsOverall(){
   return [...totals.entries()].map(([pid, acc]) => ({
     key: pid,
     names: cfg.roster?.[pid]?.name || "?",
+    playerIds: [pid],
     toPar: acc.toPar,
     thru: acc.thru,
-    roundsPlayed: acc.rounds
+    roundsPlayed: acc.rounds,
+    byRound: acc.byRound
   }));
 }
 
+const parClass = n => n < 0 ? "under" : n > 0 ? "over" : "even";
+const numCell = (n, extra = "") => n == null
+  ? '<td class="num dash ' + extra + '">&ndash;</td>'
+  : '<td class="num ' + parClass(n) + " " + extra + '">' + fmtToPar(n) + "</td>";
+
+// Tied positions read "T2", the way a tournament board shows them.
+function positions(rows){
+  return rows.map(r => {
+    const first = rows.findIndex(x => x.toPar === r.toPar) + 1;
+    const tied = rows.filter(x => x.toPar === r.toPar).length > 1;
+    return (tied ? "T" : "") + first;
+  });
+}
+
+function nameCell(playerIds){
+  const n = boardName(playerIds);
+  return '<td class="nm"><div class="lb-big">' + esc(n.big) + "</div>" +
+    (n.small ? '<div class="lb-small">' + esc(n.small) + "</div>" : "") + "</td>";
+}
+
+function boardShell(sub, inner){
+  return '<div class="board">' +
+    '<div class="board-title">' + esc(cfg.event?.name || "Covid Cup 2026") + "</div>" +
+    (sub ? '<div class="board-sub">' + sub + "</div>" : "") +
+    '<div class="board-scroll">' + inner + "</div></div>";
+}
+
+function renderRoundBoard(el, roundId){
+  const base = roundContext(roundId);
+  if (!base){ el.innerHTML = boardShell("", '<p class="board-empty">This round has no course yet.</p>'); return; }
+
+  const round = base.round;
+  const holes = base.course.holes || [];
+  const parOf = hs => hs.reduce((s, h) => s + (+h.par || 0), 0);
+  const front = holes.filter(h => h.number <= 9);
+  const back = holes.filter(h => h.number > 9);
+
+  const rows = rowsForRound(roundId).filter(r => r.thru > 0)
+    .sort((a, b) => a.toPar - b.toPar || b.thru - a.thru);
+  const pos = positions(rows);
+  const unit = FORMATS[round.format]?.unit === "player" ? "Player" : "Team";
+
+  const sub = esc(round.name || "") + " &middot; " + esc(base.course.name || "") + " &middot; " +
+    esc(FORMATS[round.format]?.label || round.format);
+
+  if (!rows.length){ el.innerHTML = boardShell(sub, '<p class="board-empty">No scores posted yet.</p>'); return; }
+
+  const table =
+    '<table class="lboard">' +
+      '<tr class="parrow"><th></th><th class="nm">Par</th>' +
+        "<th>" + (front.length ? parOf(front) : "") + "</th>" +
+        "<th>" + (back.length ? parOf(back) : "") + "</th>" +
+        "<th>" + parOf(holes) + "</th><th></th></tr>" +
+      '<tr class="head"><th>Pos</th><th class="nm">' + unit + "</th><th>Out</th><th>In</th><th>Total</th><th>Thru</th></tr>" +
+      rows.map((r, i) =>
+        "<tr>" +
+          '<td class="pos">' + pos[i] + "</td>" +
+          nameCell(r.playerIds) +
+          numCell(r.front.thru ? r.front.toPar : null) +
+          numCell(back.length && r.back.thru ? r.back.toPar : null) +
+          numCell(r.toPar, "tot") +
+          '<td class="thru">' + (r.thru === holes.length ? "F" : r.thru) + "</td>" +
+        "</tr>").join("") +
+    "</table>";
+
+  el.innerHTML = boardShell(sub, table);
+}
+
+function renderOverallBoard(el){
+  const rounds = orderedRounds();
+  const rows = rowsOverall().filter(r => r.thru > 0)
+    .sort((a, b) => a.toPar - b.toPar || b.thru - a.thru);
+  const pos = positions(rows);
+
+  if (!rows.length){ el.innerHTML = boardShell("All rounds", '<p class="board-empty">No scores posted yet.</p>'); return; }
+
+  const table =
+    '<table class="lboard">' +
+      '<tr class="head"><th>Pos</th><th class="nm">Player</th>' +
+        rounds.map((_, i) => "<th>R" + (i + 1) + "</th>").join("") + "<th>Total</th></tr>" +
+      rows.map((r, i) =>
+        "<tr>" +
+          '<td class="pos">' + pos[i] + "</td>" +
+          nameCell(r.playerIds) +
+          rounds.map(([rid]) => numCell(r.byRound[rid] ?? null)).join("") +
+          numCell(r.toPar, "tot") +
+        "</tr>").join("") +
+    "</table>";
+
+  el.innerHTML = boardShell("All rounds", table);
+}
+
 function renderLeaderboard(){
-  fillRoundSelect(document.getElementById("boardRoundSelect"), { includeOverall: true });
-  const which = document.getElementById("boardRoundSelect").value;
-  const rows = (which === "__all" ? rowsOverall() : rowsForRound(which)).filter(r => r.thru > 0);
-
-  rows.sort((a, b) => a.toPar - b.toPar || b.thru - a.thru);
-
-  document.getElementById("leaderboardList").innerHTML = rows.length ? rows.map((r, i) => `
-    <div class="lb-row">
-      <span class="lb-rank">${i + 1}</span>
-      <span class="lb-names">${esc(r.names)}
-        <div class="lb-thru">${which === "__all"
-          ? `${r.roundsPlayed} round${r.roundsPlayed === 1 ? "" : "s"} · thru ${r.thru}`
-          : `thru ${r.thru}`}</div></span>
-      <span class="lb-topar">${fmtToPar(r.toPar)}</span>
-    </div>`).join("") : `<p class="empty">No scores posted yet.</p>`;
+  // With a single round there's nothing to choose between, so the picker goes away.
+  const multi = orderedRounds().length > 1;
+  const sel = document.getElementById("boardRoundSelect");
+  fillRoundSelect(sel, { includeOverall: multi });
+  sel.classList.toggle("hidden", !multi);
+  const el = document.getElementById("leaderboardList");
+  if (!sel.value){ el.innerHTML = boardShell("", '<p class="board-empty">No rounds set up yet.</p>'); return; }
+  if (sel.value === "__all") renderOverallBoard(el);
+  else renderRoundBoard(el, sel.value);
 }
 
 /* ---------- statistics ---------- */
@@ -781,6 +961,11 @@ document.querySelectorAll("nav.tabs button").forEach(btn => {
 
 document.getElementById("homeRoundSelect").addEventListener("change", renderGroupsList);
 document.getElementById("scoreRoundSelect").addEventListener("change", () => { currentHole = null; renderScorecard(); });
+document.getElementById("scoreGroupSelect").addEventListener("change", e => {
+  scoringFor[document.getElementById("scoreRoundSelect").value] = e.target.value;
+  currentHole = null;
+  renderScorecard();
+});
 
 document.querySelectorAll(".seg button").forEach(btn => btn.addEventListener("click", () => {
   document.querySelectorAll(".seg button").forEach(b => b.classList.remove("active"));

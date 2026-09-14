@@ -138,22 +138,22 @@ export function netDoubleBogey(par, strokes){
 // Every rule resolves to a GROSS cap for one player on one hole, since that's what gets
 // compared with the number somebody typed. `plus` only matters for "par-plus".
 export const MAX_SCORE_RULES = {
-  "net-double-bogey": { label: "Net double bogey (par + 2 + shots)" },
   "double-par":       { label: "Double par" },
+  "net-double-bogey": { label: "Net double bogey (par + 2 + shots)" },
   "triple-bogey":     { label: "Triple bogey (par + 3)" },
   "par-plus":         { label: "Par plus a set number" },
   "none":             { label: "No maximum — every hole holed out" }
 };
-export const DEFAULT_MAX_RULE = "net-double-bogey";
+export const DEFAULT_MAX_RULE = "double-par";
 
 export function grossCap(rule = DEFAULT_MAX_RULE, par, shots = 0, plus = 4){
   const p = +par || 0;
   switch (rule){
-    case "none":         return null;
-    case "double-par":   return p * 2;
-    case "triple-bogey": return p + 3;
-    case "par-plus":     return p + (+plus || 0);
-    default:             return netDoubleBogey(p, shots);
+    case "none":             return null;
+    case "net-double-bogey": return netDoubleBogey(p, shots);
+    case "triple-bogey":     return p + 3;
+    case "par-plus":         return p + (+plus || 0);
+    default:                 return p * 2;   // double par, the default
   }
 }
 
@@ -162,7 +162,7 @@ export function grossCap(rule = DEFAULT_MAX_RULE, par, shots = 0, plus = 4){
  * receives `shots` there. Returns null if nothing usable has been entered.
  *
  * - A picked-up ball scores the round's maximum. With no maximum set there is nothing to
- *   give it, so it falls back to net double bogey rather than silently scoring zero.
+ *   give it, so it falls back to double par rather than silently scoring zero.
  * - A typed score above the maximum counts as the maximum. The typed number stays in
  *   storage, so changing a round's rule later re-scores the card correctly.
  * - Net is always gross minus shots. Net double bogey's NET value is par + 2; the
@@ -174,7 +174,7 @@ export function scoreCell(cell, par, shots, maxRule, maxPlus){
   const cap = grossCap(maxRule, par, shots, maxPlus);
 
   if (cell.x){
-    const gross = cap ?? netDoubleBogey(par, shots);
+    const gross = cap ?? (+par || 0) * 2;
     return { gross, net: gross - shots, pickedUp: true, capped: false };
   }
   if (cell.v == null) return null;
@@ -213,6 +213,9 @@ export function computeHoleResult(format, hole, entry, ctx){
   if (!results.length) return null;
 
   if (format === "best-ball-net" || format === "shamble"){
+    // Wait for every partner. Nothing is decided off a half-filled hole: the first score
+    // in can look like the team's result and then change when the partner's lands.
+    if (results.length < memberIds.length) return null;
     return { net: Math.min(...results.map(r => r.net)), gross: null };
   }
   if (format === "total-net"){

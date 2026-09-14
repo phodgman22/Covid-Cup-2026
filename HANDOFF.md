@@ -17,6 +17,11 @@ mixed). That generalisation is deliberate — Covid Cup is a real event, but it 
 the test bed for a customisable tournament framework, so hard-coding one event's shape is
 the thing to avoid.
 
+**Covid Cup itself is 2-man team net best ball, stroke play, double par maximum.** Set it
+up as one round, format Best ball (net), with every group a 2-man team. Two teams playing
+together on the course are still two groups — give them the same tee time, and either
+player's phone can keep both cards using "Scoring for" on the scorecard.
+
 ## Live URLs
 
 - Player view: https://phodgman22.github.io/Covid-Cup-2026/
@@ -74,6 +79,10 @@ adding a row to `FORMATS` and a branch in `computeHoleResult` — nothing else.
 Format is **per round**, so a five-round trip can be scramble on day one and singles on
 day five. Groups are per round too, so pairings can change day to day.
 
+**Best ball and shamble wait for every partner** before a hole counts. The first score in
+can look like the team's result and then change when the partner's lands, so nothing is
+decided off a half-filled hole — the same rule the Michigan app uses.
+
 ## Handicaps
 
 - Course handicap is always **calculated**, never typed: `index x (slope/113) + (rating - par)`.
@@ -86,7 +95,7 @@ day five. Groups are per round too, so pairings can change day to day.
   (standard weightings — 35/15 for a pair, 20/15/10 for three, 25/20/15/10 for four;
   alternate shot is 50% of combined) or `off-lowest` (every team drops by the lowest team's).
 - **Maximum score is set per round** (`round.maxScore`, plus `round.maxPlus` for
-  "par-plus"): net double bogey (the default), double par, triple bogey, par plus N, or
+  "par-plus"): double par (the default), net double bogey, triple bogey, par plus N, or
   none. Every rule resolves to a *gross* cap for one player on one hole — see `grossCap()`.
   A typed score above the cap counts as the cap; a picked-up ball scores the cap. What
   was typed stays in storage, so changing a round's rule later re-scores it correctly.
@@ -182,6 +191,15 @@ Things that are load-bearing here:
 
 SheetJS is loaded from cdnjs as a plain (non-module) script, so it must stay *above* the
 module script that uses it.
+
+## Leaderboard
+
+Styled as a hand-lettered clubhouse board — cream stock, blackletter surnames with a green
+drop cap, first names small underneath, red numbers under par. It is a deliberate single
+look and does not follow the app's dark theme. Fonts come from Google Fonts (Pirata One for
+names and title, Kalam for numbers) with system fallbacks. A round shows Out, In and Total
+to par, with ties shown as "T2" and "F" once all 18 are in. With more than one round there
+is also an Overall board by player; with one round the round picker is hidden.
 
 ## Player codes
 
