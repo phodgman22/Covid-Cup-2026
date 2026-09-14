@@ -231,13 +231,25 @@ team's scores. This stops accidents, not a determined person.
 
 ## Spreadsheet setup
 
-admin.html can download an `.xlsx` template and read a filled one back — three flat
-sheets, one row per thing, so it stays obvious to someone editing it in Excel:
+admin.html can download an `.xlsx` template and read a filled one back — four sheets: a
+**Read me first** sheet (opened first) explaining how the other three link together, plus
+three flat data sheets, one row per thing, so they stay obvious to someone editing them in
+Excel:
 
 - **Courses** — Course, Location, Holes (9 or 18), Tee, Rating, Slope, Yards.
   One row per *tee*, with the course name repeated.
 - **Holes** — Course, Hole, Par, Stroke index.
-- **Players** — Player, Handicap index, Tee, Email.
+- **Players** — Player, Handicap index, Tee, Email, Commissioner (Y/N).
+
+The download always has one clearly-marked `EXAMPLE — delete this row` row on each of the
+three data sheets, showing the expected shape, instead of a bare header row. The `EXAMPLE`
+name makes a row left in by accident easy to spot afterward rather than becoming a real
+course or player silently.
+
+**Commissioner (Y/N)** on Players sets `roster[pid].commissioner` — see Commissioner mode
+above. Blank means "leave it as it was", same as Email; only `Y`/`Yes`/`True`/`1`
+(case-insensitive) turns it on, so re-uploading a sheet that never touched this column can't
+accidentally take commissioner access away from someone it's already on for.
 
 The download is always a blank template. Uploading **replaces** courses and players wholesale.
 
@@ -337,6 +349,15 @@ mode (`isAdmin` in index.html):
 - The leaderboard pop-up has **Edit this card**, which opens that card on the Scorecard tab.
 
 Players still only ever see their own card.
+
+**A player can also be flagged as the commissioner** (`roster[pid].commissioner`, a checkbox
+in admin.html's roster table — "Commish" — and a `Commissioner (Y/N)` column in the
+spreadsheet template) so he doesn't have to carry a separate console PIN around on the
+course. Logging in with just his own player code both sets `meId` to himself and calls the
+same `unlockAdmin()` a console code does — one code, both. Covered from both sides: the
+first-login path in the code-submit handler, and `trySavedLogin()` for a phone that already
+had a plain player login saved before he was flagged. There's no way to un-flag yourself from
+inside the player app — that's deliberate, it's a console setting.
 
 ## Submitting a card
 

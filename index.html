@@ -1784,6 +1784,9 @@ function enterApp(){
 function trySavedLogin(){
   const saved = localStorage.getItem(ME_KEY);
   if (saved && cfg.roster?.[saved]) meId = saved;
+  // Covers a player who was flagged as commissioner in the roster after his phone had
+  // already saved a plain player login — not just the first-time login path above.
+  if (meId && !isAdmin && cfg.roster?.[meId]?.commissioner) unlockAdmin();
   if (meId || isAdmin){ enterApp(); return true; }
   return false;
 }
@@ -1825,6 +1828,10 @@ document.getElementById("codeSubmit").addEventListener("click", () => {
   if (!id){ document.getElementById("codeError").style.display = "block"; return; }
   meId = id;
   localStorage.setItem(ME_KEY, id);
+  // A player flagged as the commissioner in the roster gets both from his own one code —
+  // no separate console PIN to remember. `unlockAdmin` persists the same as any other
+  // commissioner login, so this only has to run once.
+  if (cfg.roster?.[id]?.commissioner) unlockAdmin();
   enterApp();
 });
 document.getElementById("codeInput").addEventListener("keydown", e => {

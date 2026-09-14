@@ -446,7 +446,7 @@ function renderRoster(){
     .map(rid => `<td class="c gh" data-gh="${rid}">${ghValue(rid, pid)}</td>`).join("");
 
   list.innerHTML = `<table>
-    <tr><th>Name</th><th class="c">Index</th><th>Tee</th><th class="c">Course hcp</th>${ghHead}<th class="c">Allow %</th><th>Email</th><th class="c">Code</th><th></th></tr>` +
+    <tr><th>Name</th><th class="c">Index</th><th>Tee</th><th class="c">Course hcp</th>${ghHead}<th class="c">Allow %</th><th>Email</th><th class="c">Code</th><th class="c">Commish</th><th></th></tr>` +
     players.map(([id, p]) => {
       const ch = displayCourseHandicap(p);
       return `<tr data-id="${id}">
@@ -459,6 +459,8 @@ function renderRoster(){
         <td class="c"><input type="number" min="0" max="100" placeholder="&mdash;" value="${p.allowancePct ?? ""}" data-pf="allowancePct" style="width:58px;text-align:center;"></td>
         <td><input type="email" value="${esc(p.email || "")}" data-pf="email" placeholder="&mdash;" style="min-width:160px;"></td>
         <td class="c"><span class="code-pill">${esc(p.code || "")}</span></td>
+        <td class="c"><input type="checkbox" data-pf="commissioner" ${p.commissioner ? "checked" : ""}
+          title="Also log in as the commissioner with this player's own code"></td>
         <td class="c" style="white-space:nowrap;">
           <button class="mini" data-mail="${id}" ${p.email ? "" : "disabled"} title="Email this player his code">Send</button>
           <button class="icon danger-x" data-del-player="${id}" title="Remove player">&times;</button>
@@ -468,7 +470,9 @@ function renderRoster(){
     <p class="hint" style="margin-top:8px;">Course hcp comes from the tee's rating and slope. <b>Game hcp</b> is what
       the player actually plays off in the round's game &mdash; after the allowance, off the low man where that
       applies, and within his match in match play. It shows &mdash; until he's on a team, or in a match.
-      Leave Allow % blank for the event-wide allowance. Codes are name tags for logging in, not passwords.</p>`;
+      Leave Allow % blank for the event-wide allowance. Codes are name tags for logging in, not passwords.
+      <b>Commish</b> lets a player who's also running the event log in with just his own code and get commissioner
+      access too &mdash; no separate console PIN to remember on the course.</p>`;
 
   // Edits update state and refresh only the cells that depend on them. Re-rendering the
   // whole table on every keystroke would throw focus out of the field being typed in.
@@ -485,6 +489,10 @@ function renderRoster(){
         if (inp.value === "") delete player.allowancePct;
         else player.allowancePct = +inp.value;
         refreshGameHcps(); renderGroups();
+        return;
+      }
+      if (f === "commissioner"){
+        player.commissioner = inp.checked;
         return;
       }
 
@@ -1151,7 +1159,7 @@ const SHEET_PLAYERS = "Players";
 
 const COURSE_HEADERS = ["Course", "Location", "Holes (9 or 18)", "Tee", "Rating", "Slope", "Yards"];
 const HOLE_HEADERS   = ["Course", "Hole", "Par", "Stroke index"];
-const PLAYER_HEADERS = ["Player", "Handicap index", "Tee", "Email"];
+const PLAYER_HEADERS = ["Player", "Handicap index", "Tee", "Email", "Commissioner (Y/N)"];
 
 // An obviously-fake course/player name, so a row left in by accident is easy to spot and
 // remove in the console afterward rather than quietly becoming a real entry.
@@ -1193,6 +1201,11 @@ function buildReadMeRows(){
     ["Course names on the Courses and Holes sheets need to match each other exactly too, for the"],
     ["same reason — that's how the app knows which holes belong to which course."],
     [""],
+    ["Commissioner (Y/N) — if you're playing and running the event, put Y on your own row. You'll"],
+    ["then get commissioner access just by logging into the player app with your own code — no"],
+    ["separate console PIN to carry around on the course. Leave it blank (or N) for everyone else."],
+    ["Leaving the column blank on an upload doesn't turn this off for anyone it's already on for."],
+    [""],
     ["Uploading REPLACES every course and every player with what's in the file. Players are"],
     ["matched by name against who's already in the roster, so anyone already there keeps their"],
     ["login code and any settings you've made for them — you're not starting over each time."]
@@ -1213,7 +1226,7 @@ function buildTemplateRows(){
   ];
   const holeRows = [HOLE_HEADERS, ...EXAMPLE_HOLES.map(([hole, par, si]) => [EXAMPLE, hole, par, si])];
 
-  const playerRows = [PLAYER_HEADERS, [EXAMPLE, 12.4, "White", "example@email.com"]];
+  const playerRows = [PLAYER_HEADERS, [EXAMPLE, 12.4, "White", "example@email.com", "N"]];
 
   return { readMeRows, courseRows, holeRows, playerRows };
 }
@@ -1240,7 +1253,7 @@ function downloadTemplate(){
   XLSX.utils.book_append_sheet(wb, wsHoles, SHEET_HOLES);
 
   const wsPlayers = XLSX.utils.aoa_to_sheet(playerRows);
-  wsPlayers["!cols"] = [{ wch: 24 }, { wch: 15 }, { wch: 12 }, { wch: 28 }];
+  wsPlayers["!cols"] = [{ wch: 24 }, { wch: 15 }, { wch: 12 }, { wch: 28 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, wsPlayers, SHEET_PLAYERS);
 
   XLSX.writeFile(wb, "covid-cup-setup.xlsx");
@@ -1330,6 +1343,11 @@ function importWorkbook(wb){
     if (!c.holes.length) c.holes = defaultHoles(c.holesCount);
   });
 
+  // Blank means "leave it as it was" (like Email above); only Y/Yes/True/1 turns it on —
+  // anything else, including a blank cell on a brand new player, defaults to off.
+  const YES = new Set(["y", "yes", "true", "1"]);
+  const truthyYN = (v, fallback = false) => v === undefined ? fallback : YES.has(String(v).trim().toLowerCase());
+
   const roster = {};
   let kept = 0;
   playerRows.forEach(r => {
@@ -1344,6 +1362,7 @@ function importWorkbook(wb){
       index: +pick(r, "Handicap index", "Index") || 0,
       tee: String(pick(r, "Tee") ?? "").trim(),
       email: String(pick(r, "Email") ?? existing?.p.email ?? "").trim(),
+      commissioner: truthyYN(pick(r, "Commissioner (Y/N)", "Commissioner"), existing?.p.commissioner || false),
       code: existing?.p.code || newCode(),
       ...(existing?.p.allowancePct !== undefined ? { allowancePct: existing.p.allowancePct } : {})
     };
