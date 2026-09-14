@@ -848,14 +848,23 @@ function renderHoleView(body, c){
 
   // With two teams on one card, each team's boxes sit under its name.
   const headed = c.teams.length > 1 && FORMATS[c.format]?.entry !== "team";
+
+  // Two teams sharing a tee time share the card, but not the pen: each team's boxes can
+  // only be entered by a player on that team, so one phone can't quietly fill in the other
+  // team's numbers. The commissioner is exempt, same as every other lock on this card.
+  const myOwnUnit = isAdmin ? null : myUnit(c.base);
+  const othersTeam = f => !isAdmin && c.teams.length > 1 && f.unitId !== myOwnUnit;
+
   let lastUnit = null;
   const entries = c.fields.map((f, i) => {
     const cell = cellFor(c, f, hole.number) || {};
     const shots = c.gross ? 0 : strokesOnHole(f.ph, hole.si, c.holeCount);
     const cap = grossCap(c.maxRule, hole.par, shots, c.maxPlus);
     const picked = !!cell.x;
-    // Nothing to score on a hole further ahead, or on a card that's been submitted.
-    const noEdit = ahead || unitLocked(c.roundId, f.unitId);
+    const locked = othersTeam(f);
+    // Nothing to score on a hole further ahead, on a card that's been submitted, or on the
+    // other team's boxes.
+    const noEdit = ahead || unitLocked(c.roundId, f.unitId) || locked;
     const header = headed && f.unitId !== lastUnit
       ? '<div class="team-head">' + esc(c.teams.find(t => t.unitId === f.unitId).label) + "</div>" : "";
     lastUnit = f.unitId;
@@ -867,6 +876,7 @@ function renderHoleView(body, c){
               ? "gross" + (cap != null ? " &middot; max " + cap : "")
               : (shots ? shots + " shot" + (shots > 1 ? "s" : "") + " here" : "no shot here") +
                 " &middot; plays off " + f.ph + (cap != null ? " &middot; max " + cap : "")) +
+            (locked ? " &middot; their team enters this" : "") +
           "</span>" +
         "</span>" +
         '<span class="big-box">' +
