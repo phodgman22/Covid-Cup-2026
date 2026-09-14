@@ -44,7 +44,40 @@ th{color:var(--dim);font-weight:500;}
 .nine-col{flex:1 0 46px;min-width:46px;}
 .nine-num{justify-content:center;color:var(--text);font-weight:600;}
 .nine-col input{height:34px;padding:2px;text-align:center;}
+/* roster */
 #playerList{overflow-x:auto;}
+#playerList table{font-size:13px;}
+#playerList th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:4px 4px 6px;white-space:nowrap;}
+#playerList td{padding:3px 3px;vertical-align:middle;}
+#playerList input,#playerList select{padding:5px 7px;font-size:13px;border-radius:6px;}
+#playerList td.c,#playerList th.c{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#playerList td.gh{font-weight:700;color:var(--accent);}
+#playerList .code-pill{font-size:11px;padding:2px 6px;}
+button.mini{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:4px 9px;font-size:12px;}
+button.mini:disabled{opacity:.4;cursor:default;}
+button.icon{background:none;border:none;padding:2px 6px;font-size:18px;line-height:1;color:var(--dim);}
+button.icon.danger-x:hover{color:var(--danger);}
+/* rounds: format, teams, tee times, matches */
+.round-card{padding:14px 14px 8px;}
+h3.step{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:16px 0 8px;
+  border-top:1px solid var(--line);padding-top:14px;}
+h3.step .hint{text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
+.toggles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.grid-scroll{overflow-x:auto;}
+table.grid{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--line);}
+table.grid th{background:var(--surface3);color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.04em;padding:6px 8px;border:1px solid var(--line);text-align:left;white-space:nowrap;}
+table.grid td{padding:4px 6px;border:1px solid var(--line);vertical-align:middle;}
+table.grid tr:nth-child(odd) td{background:rgba(255,255,255,.025);}
+table.grid td.n,table.grid th.n{width:32px;text-align:center;color:var(--dim);}
+table.grid td.c,table.grid th.c{text-align:center;white-space:nowrap;}
+table.grid input,table.grid select{padding:5px 7px;font-size:13px;border-radius:6px;background:var(--surface2);}
+table.grid select.add{width:auto;min-width:110px;padding:3px 6px;font-size:12px;color:var(--muted);margin:2px 0;}
+table.grid .member{margin:2px 4px 2px 0;}
+table.grid .vs{color:var(--dim);font-size:12px;}
+table.grid .empty-row{color:var(--dim);text-align:center;padding:10px;}
+.grid-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 4px;}
+.grid-foot button{padding:6px 12px;font-size:13px;}
 .code-pill{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface3);
   border:1px solid var(--line);border-radius:6px;padding:2px 8px;letter-spacing:.12em;font-size:12px;}
 .tee-row,.group-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
@@ -107,22 +140,6 @@ th{color:var(--dim);font-weight:500;}
   </div>
 
   <div class="card">
-    <h2>Format</h2>
-    <p>Pick the game first &mdash; everything below adjusts to it. Every game can be played
-      <b>net</b> (with handicaps) or <b>gross</b> (straight strokes, no handicaps).</p>
-    <div class="fmt-grid" id="formatFamilies"></div>
-    <div class="row" style="margin:12px 0 0;align-items:center;">
-      <div style="flex:0 0 auto;min-width:0;">
-        <div class="seg-admin" id="formatBasis">
-          <button type="button" data-gross="0">Net</button>
-          <button type="button" data-gross="1">Gross</button>
-        </div>
-      </div>
-      <div><p class="hint" id="formatSummary" style="margin:0;"></p></div>
-    </div>
-  </div>
-
-  <div class="card">
     <h2>Event</h2>
     <div class="row">
       <div><label>Event name</label><input id="eventName" placeholder="Covid Cup 2026"></div>
@@ -136,14 +153,14 @@ th{color:var(--dim);font-weight:500;}
         <label>Allowance basis</label>
         <select id="allowanceMode">
           <option value="full">Full &mdash; each player off his own handicap</option>
-          <option value="off-lowest">Off lowest &mdash; best player plays scratch</option>
+          <option value="off-lowest">Off the low man &mdash; in the field (stroke) or match (match play)</option>
         </select>
       </div>
       <div id="teamHcpField">
         <label>Team handicaps (scramble / alt shot)</label>
         <select id="teamHcpMode">
           <option value="formula">Formula per team</option>
-          <option value="off-lowest">Off lowest team</option>
+          <option value="off-lowest">Off the low team</option>
         </select>
       </div>
     </div>
@@ -176,9 +193,9 @@ th{color:var(--dim);font-weight:500;}
         <input type="file" id="uploadInput" accept=".xlsx,.xls" class="hidden">
       </div>
     </div>
-    <p class="hint">The download includes whatever you've already entered, so it works
-      as an export too. Uploading <b>replaces</b> courses and players. Players are matched
-      by name &mdash; anyone already in the roster keeps their existing login code.</p>
+    <p class="hint">The download is always a blank template. Uploading <b>replaces</b> courses and
+      players. Players are matched by name &mdash; anyone already in the roster keeps their existing
+      login code.</p>
     <div id="importStatus" class="status"></div>
   </div>
 
@@ -206,20 +223,11 @@ th{color:var(--dim);font-weight:500;}
 
   <div class="card">
     <h2>Rounds</h2>
-    <p>Each round has its own course and format. Scores carry across every round onto one leaderboard.</p>
+    <p>Each round has its own course, format, teams and tee times &mdash; and matches, in match play.</p>
     <div id="roundList"></div>
     <button id="addRoundBtn">+ Add round</button>
   </div>
 
-  <div class="card">
-    <h2>Teams &amp; tee times</h2>
-    <p>Two separate steps for each round. <b>Teams</b> are who plays together for the score, and
-      depend on the format. <b>Tee times</b> are who goes out on the course together.</p>
-    <div class="row">
-      <div><label>Round</label><select id="groupRoundSelect"></select></div>
-    </div>
-    <div id="groupBuilder"></div>
-  </div>
 </main>
 
 <div class="savebar">
@@ -236,7 +244,7 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
 import { FIREBASE_CONFIG, FIREBASE_CONFIGURED } from "./firebase-config.js";
 import { FORMATS, coursePar, courseHandicap, playingHandicaps,
          DEFAULT_TEAM_WEIGHTS, weightsFor, MAX_SCORE_RULES, DEFAULT_MAX_RULE,
-         FORMAT_FAMILIES, DEFAULT_FORMAT, formatFor, formatOf } from "./scoring.js";
+         FORMAT_FAMILIES, DEFAULT_FORMAT, formatFor, formatOf, gameHandicaps } from "./scoring.js";
 import { ACCEPTED_PINS } from "./admin-pins.js";
 
 
@@ -250,12 +258,13 @@ if (FIREBASE_CONFIGURED) {
 }
 
 const state = {
-  event:   { name: "Covid Cup 2026", format: DEFAULT_FORMAT, allowancePct: 90, allowanceMode: "full", teamHcpMode: "formula" },
+  event:   { name: "Covid Cup 2026", allowancePct: 90, allowanceMode: "full", teamHcpMode: "formula" },
   courses: {}, // id -> { name, location, holesCount, holes:[{number,par,si,yards}], tees:[{name,rating,slope,yards}] }
   roster:  {}, // id -> { name, index, tee, code, allowancePct? }
   rounds:  {}, // id -> { name, courseId, format, order }
-  groups:  {}, // roundId -> { teamId: { playerIds:[...] } } — the teams that score together
-  teeTimes: {} // roundId -> { teeTimeId: { start, unitIds:[teamId or "p-<playerId>"] } }
+  groups:  {},  // roundId -> { teamId: { name, playerIds:[...] } } — the teams that score together
+  teeTimes: {}, // roundId -> { teeTimeId: { start, unitIds:[teamId or "p-<playerId>"] } }
+  matches: {}   // roundId -> { matchId: { unitIds:[sideA, sideB] } } — match play only
 };
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -419,30 +428,48 @@ function renderRoster(){
   const players = Object.entries(state.roster);
   if (!players.length){ list.innerHTML = `<p>No players yet.</p>`; renderGroups(); return; }
 
+  const rounds = orderedRounds();
+  // One Game hcp column per round: what each player actually plays off in that round's game.
+  const ghHead = rounds.length <= 1
+    ? `<th class="c" title="What the player actually plays off in the round's game">Game hcp</th>`
+    : rounds.map(([, r], i) => `<th class="c" title="${esc(r.name || "Round " + (i + 1))}">R${i + 1} hcp</th>`).join("");
+  const ghValue = (rid, pid) => {
+    const v = rid ? receivedHcp(rid, pid) : null;
+    return v == null ? "&mdash;" : v;
+  };
+  const ghCells = pid => (rounds.length ? rounds.map(([rid]) => rid) : [""])
+    .map(rid => `<td class="c gh" data-gh="${rid}">${ghValue(rid, pid)}</td>`).join("");
+
   list.innerHTML = `<table>
-    <tr><th>Name</th><th>Index</th><th>Tee</th><th>Course hcp</th><th>Allow %</th><th>Email</th><th>Code</th><th></th></tr>` +
+    <tr><th>Name</th><th class="c">Index</th><th>Tee</th><th class="c">Course hcp</th>${ghHead}<th class="c">Allow %</th><th>Email</th><th class="c">Code</th><th></th></tr>` +
     players.map(([id, p]) => {
       const ch = displayCourseHandicap(p);
       return `<tr data-id="${id}">
-        <td><input value="${esc(p.name)}" data-pf="name" placeholder="Name" style="min-width:120px;"></td>
-        <td><input type="number" step="0.1" value="${p.index ?? 0}" data-pf="index" style="min-width:84px;max-width:96px;"></td>
-        <td><select data-pf="tee" style="min-width:112px;">${allTeeNames().map(n =>
+        <td><input value="${esc(p.name)}" data-pf="name" placeholder="Name" style="min-width:130px;"></td>
+        <td class="c"><input type="number" step="0.1" value="${p.index ?? 0}" data-pf="index" style="width:64px;text-align:center;"></td>
+        <td><select data-pf="tee" style="width:94px;">${allTeeNames().map(n =>
               `<option value="${esc(n)}" ${n === p.tee ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></td>
-        <td data-ch>${ch == null ? "&mdash;" : ch}</td>
-        <td><input type="number" min="0" max="100" placeholder="&mdash;" value="${p.allowancePct ?? ""}" data-pf="allowancePct" style="max-width:72px;"></td>
-        <td><input type="email" value="${esc(p.email || "")}" data-pf="email" placeholder="&mdash;" style="min-width:150px;"></td>
-        <td><span class="code-pill">${esc(p.code || "")}</span></td>
-        <td style="white-space:nowrap;">
-          <button class="link" data-mail="${id}" ${p.email ? "" : "disabled"}>Send code</button>
-          <button class="link" data-del-player="${id}">Remove</button>
+        <td class="c" data-ch>${ch == null ? "&mdash;" : ch}</td>
+        ${ghCells(id)}
+        <td class="c"><input type="number" min="0" max="100" placeholder="&mdash;" value="${p.allowancePct ?? ""}" data-pf="allowancePct" style="width:58px;text-align:center;"></td>
+        <td><input type="email" value="${esc(p.email || "")}" data-pf="email" placeholder="&mdash;" style="min-width:160px;"></td>
+        <td class="c"><span class="code-pill">${esc(p.code || "")}</span></td>
+        <td class="c" style="white-space:nowrap;">
+          <button class="mini" data-mail="${id}" ${p.email ? "" : "disabled"} title="Email this player his code">Send</button>
+          <button class="icon danger-x" data-del-player="${id}" title="Remove player">&times;</button>
         </td>
       </tr>`;
     }).join("") + `</table>
-    <p class="hint">Course handicap is calculated from the tee's rating and slope &mdash; it isn't typed in.
-      Leave Allow % blank to use the event-wide allowance. Codes are name tags for logging in, not passwords.</p>`;
+    <p class="hint" style="margin-top:8px;">Course hcp comes from the tee's rating and slope. <b>Game hcp</b> is what
+      the player actually plays off in the round's game &mdash; after the allowance, off the low man where that
+      applies, and within his match in match play. It shows &mdash; until he's on a team, or in a match.
+      Leave Allow % blank for the event-wide allowance. Codes are name tags for logging in, not passwords.</p>`;
 
   // Edits update state and refresh only the cells that depend on them. Re-rendering the
   // whole table on every keystroke would throw focus out of the field being typed in.
+  const refreshGameHcps = () => list.querySelectorAll("tr[data-id]").forEach(row =>
+    row.querySelectorAll("[data-gh]").forEach(cell => { cell.innerHTML = ghValue(cell.dataset.gh, row.dataset.id); }));
+
   list.querySelectorAll("tr[data-id]").forEach(row => {
     const id = row.dataset.id;
     row.querySelectorAll("[data-pf]").forEach(inp => inp.addEventListener("input", () => {
@@ -452,6 +479,7 @@ function renderRoster(){
       if (f === "allowancePct"){
         if (inp.value === "") delete player.allowancePct;
         else player.allowancePct = +inp.value;
+        refreshGameHcps(); renderGroups();
         return;
       }
 
@@ -460,8 +488,9 @@ function renderRoster(){
       if (f === "index" || f === "tee"){
         const ch = displayCourseHandicap(player);
         row.querySelector("[data-ch]").innerHTML = ch == null ? "&mdash;" : ch;
+        refreshGameHcps(); renderGroups();
       }
-      if (f === "name") renderGroups(); // group rows show player names
+      if (f === "name") renderGroups(); // team and tee time rows show player names
       if (f === "email"){
         const mailBtn = row.querySelector("[data-mail]");
         if (mailBtn) mailBtn.disabled = !inp.value.trim();
@@ -504,16 +533,35 @@ function renderRoster(){
   renderGroups();
 }
 
+
 /* ---------- rounds ---------- */
+
+// One line saying what a round's settings add up to, so it can be checked at a glance.
+function formatSummary(r){
+  const f = FORMATS[r.format] || FORMATS[DEFAULT_FORMAT];
+  const match = r.play === "match";
+  const lowMode = f.teamHcp ? state.event.teamHcpMode : state.event.allowanceMode;
+  const who = f.teamHcp ? "low team" : "low man";
+  return "<b>" + esc(f.label) + " &middot; " + (match ? "match play" : "stroke play") + "</b> &mdash; " +
+    (f.gross
+      ? "straight strokes, no handicaps."
+      : (f.teamHcp ? "one team ball off a combined team handicap" : "each player off his own handicap") +
+        (lowMode === "off-lowest"
+          ? ", played off the " + who + (match ? " in each match." : " in the field.")
+          : ", full handicaps."));
+}
 
 function renderRounds(){
   const wrap = document.getElementById("roundList");
   const rounds = orderedRounds();
-  if (!rounds.length){ wrap.innerHTML = `<p>No rounds yet.</p>`; renderGroupRoundSelect(); return; }
+  if (!rounds.length){ wrap.innerHTML = `<p>No rounds yet.</p>`; return; }
 
   const courseOpts = Object.entries(state.courses);
-  wrap.innerHTML = rounds.map(([id, r], i) => `
-    <div class="sub-card" data-round="${id}">
+  wrap.innerHTML = rounds.map(([id, r], i) => {
+    const f = FORMATS[r.format] || FORMATS[DEFAULT_FORMAT];
+    const match = r.play === "match";
+    return `
+    <div class="sub-card round-card" data-round="${id}">
       <div class="row">
         <div><label>Round ${i + 1} name</label><input data-rf="name" value="${esc(r.name || "")}" placeholder="e.g. Saturday morning"></div>
         <div>
@@ -523,18 +571,30 @@ function renderRounds(){
             ${courseOpts.map(([cid, c]) => `<option value="${cid}" ${r.courseId === cid ? "selected" : ""}>${esc(c.name || "Untitled")}</option>`).join("")}
           </select>
         </div>
-        <div>
-          <label>Format</label>
-          <select data-rf="format">
-            <option value="" ${!r.format ? "selected" : ""}>Event format &mdash; ${esc(FORMATS[eventFormat()].label)}</option>
-            ${Object.entries(FORMATS).map(([key, f]) =>
-              `<option value="${key}" ${r.format === key ? "selected" : ""}>${esc(f.label)}</option>`).join("")}
-          </select>
-        </div>
         <div style="flex:0 0 auto;display:flex;align-items:flex-end;">
-          <button class="danger" data-del-round="${id}">Remove</button>
+          <button class="danger" data-del-round="${id}">Remove round</button>
         </div>
       </div>
+
+      <h3 class="step">Format</h3>
+      <div class="toggles">
+        <div class="seg-admin">
+          <button type="button" data-set-gross="0" class="${f.gross ? "" : "active"}">Net</button>
+          <button type="button" data-set-gross="1" class="${f.gross ? "active" : ""}">Gross</button>
+        </div>
+        <div class="seg-admin">
+          <button type="button" data-set-play="stroke" class="${match ? "" : "active"}">Stroke play</button>
+          <button type="button" data-set-play="match" class="${match ? "active" : ""}">Match play</button>
+        </div>
+      </div>
+      <div class="fmt-grid">
+        ${Object.entries(FORMAT_FAMILIES).map(([fam, info]) => `
+          <button type="button" class="fmt-card ${f.family === fam ? "selected" : ""}" data-set-family="${fam}">
+            <b>${esc(info.label)}</b><span>${esc(info.blurb)}</span>
+          </button>`).join("")}
+      </div>
+      <p class="hint" style="margin:8px 0 12px;">${formatSummary(r)}</p>
+
       <div class="row">
         <div>
           <label>Maximum score per hole</label>
@@ -564,233 +624,331 @@ function renderRounds(){
           <input data-rf="ldHoles" inputmode="numeric" placeholder="e.g. 6" value="${esc(r.ldHoles || "")}">
         </div>` : ""}
       </div>
-      <p class="hint">${FORMATS[formatOf(r, state.event)]?.unit === "player"
-        ? "Each player gets his own leaderboard line in this round."
-        : "Each team is scored as one unit in this round."}
-        ${FORMATS[formatOf(r, state.event)]?.entry === "team"
-          ? " One score entered per team per hole."
-          : " One score entered per player per hole."}</p>
-    </div>`).join("");
+
+      <div class="round-setup" data-setup="${id}"></div>
+    </div>`;
+  }).join("");
 
   wrap.querySelectorAll("[data-round]").forEach(box => {
     const id = box.dataset.round;
+    const r = state.rounds[id];
+
     box.querySelectorAll("[data-rf]").forEach(inp => inp.addEventListener("input", () => {
       const rf = inp.dataset.rf;
-      state.rounds[id][rf] = inp.type === "checkbox" ? inp.checked : inp.value;
+      r[rf] = inp.type === "checkbox" ? inp.checked : inp.value;
       // Free-typed fields keep focus; anything that changes the card's shape re-renders it.
-      if (!["name", "maxPlus", "ctpHoles", "ldHoles"].includes(rf)) renderRounds();
-      if (rf === "format"){ renderFormat(); renderWeights(); }
-      renderGroupRoundSelect(); renderGroups();
+      if (["name", "maxPlus", "ctpHoles", "ldHoles"].includes(rf)) return;
+      renderRounds();
+      if (rf === "courseId") renderRoster();
     }));
+
+    const current = FORMATS[r.format] || FORMATS[DEFAULT_FORMAT];
+    const setFormat = next => {
+      r.format = next;
+      renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
+    };
+    box.querySelectorAll("[data-set-gross]").forEach(btn => btn.addEventListener("click", () =>
+      setFormat(formatFor(current.family, btn.dataset.setGross === "1"))));
+    box.querySelectorAll("[data-set-family]").forEach(btn => btn.addEventListener("click", () =>
+      setFormat(formatFor(btn.dataset.setFamily, current.gross))));
+    box.querySelectorAll("[data-set-play]").forEach(btn => btn.addEventListener("click", () => {
+      r.play = btn.dataset.setPlay;
+      renderRounds(); renderRoster();
+    }));
+
     box.querySelector("[data-del-round]").addEventListener("click", () => {
       delete state.rounds[id];
       delete state.groups[id];
       delete state.teeTimes[id];
-      renderRounds(); renderGroups(); renderFormat(); renderWeights();
+      delete state.matches[id];
+      renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
     });
   });
 
-  renderGroupRoundSelect();
+  renderGroups();
 }
 
-/* ---------- groups ---------- */
 
-const selectedForGroup = new Set();
+/* ---------- teams, tee times and matches (inside each round) ---------- */
 
-function renderGroupRoundSelect(){
-  const sel = document.getElementById("groupRoundSelect");
-  const rounds = orderedRounds();
-  const current = sel.value;
-  sel.innerHTML = rounds.map(([id, r], i) =>
-    `<option value="${id}">${esc(r.name || `Round ${i + 1}`)}</option>`).join("")
-    || `<option value="">No rounds yet</option>`;
-  if (rounds.some(([id]) => id === current)) sel.value = current;
-}
-
-// The competing entries for a round. Team formats use the teams built below; individual
-// formats have no teams — every player on the roster is his own entry, keyed "p-<id>".
+// The competing entries for a round. Team formats use the teams built below — a team with no
+// players yet doesn't count. Individual formats have no teams: every roster player is his own
+// entry, keyed "p-<id>".
 function unitsForAdmin(roundId){
   const round = state.rounds[roundId];
+  const out = {};
   if (FORMATS[formatOf(round, state.event)]?.unit === "player"){
-    const out = {};
     Object.keys(state.roster).forEach(pid => { out["p-" + pid] = { playerIds: [pid] }; });
     return out;
   }
-  return state.groups[roundId] || {};
+  Object.entries(state.groups[roundId] || {}).forEach(([gid, g]) => {
+    if ((g.playerIds || []).length) out[gid] = g;
+  });
+  return out;
 }
 
-const unitName = unit => (unit?.playerIds || []).map(pid => state.roster[pid]?.name || "?").join(" / ");
+const unitName = unit => String(unit?.name || "").trim() ||
+  (unit?.playerIds || []).map(pid => state.roster[pid]?.name || "?").join(" / ");
 
-const selectedUnits = new Set();
+// What everyone receives in a round's game, or null until the round has a course.
+function roundHandicaps(roundId){
+  const r = state.rounds[roundId];
+  const course = state.courses[r?.courseId];
+  if (!r || !course || !(course.holes || []).length) return null;
+  return gameHandicaps({
+    roster: state.roster, course, format: formatOf(r, state.event), play: r.play,
+    allowancePct: state.event.allowancePct, allowanceMode: state.event.allowanceMode,
+    teamHcpMode: state.event.teamHcpMode, teamWeights: state.event.teamWeights,
+    units: unitsForAdmin(roundId),
+    matches: Object.values(state.matches[roundId] || {})
+  });
+}
+
+// The handicap a player actually plays off in a round, or null while it isn't settled —
+// no course yet, not on a team in a team-ball game, or not in a match in match play.
+function receivedHcp(roundId, pid){
+  const r = state.rounds[roundId];
+  const h = roundHandicaps(roundId);
+  if (!h) return null;
+  const f = FORMATS[formatOf(r, state.event)];
+  if (f.gross) return 0;
+  const units = unitsForAdmin(roundId);
+  const unitId = Object.keys(units).find(u => (units[u].playerIds || []).includes(pid));
+  if (!unitId) return null;
+  if (r.play === "match"){
+    const inMatch = Object.values(state.matches[roundId] || {}).some(m => {
+      const sides = (m.unitIds || []).filter(u => units[u]);
+      return sides.length === 2 && sides.includes(unitId);
+    });
+    if (!inMatch) return null;
+  }
+  if (f.teamHcp) return h.teamPhs[unitId] ?? null;
+  return h.playerPhs[pid] ?? null;
+}
 
 function renderGroups(){
-  const roundId = document.getElementById("groupRoundSelect").value;
-  const wrap = document.getElementById("groupBuilder");
+  document.querySelectorAll("[data-setup]").forEach(el => renderRoundSetup(el.dataset.setup, el));
+}
+
+function renderRoundSetup(roundId, wrap){
   const round = state.rounds[roundId];
+  if (!round) return;
+  const f = FORMATS[formatOf(round, state.event)] || FORMATS[DEFAULT_FORMAT];
+  const individual = f.unit === "player";
+  const match = round.play === "match";
 
-  if (!roundId || !round){
-    wrap.innerHTML = `<p>Add a round first, then set up its teams and tee times here.</p>`;
-    return;
-  }
-
-  const roundFormat = formatOf(round, state.event);
-  const individual = FORMATS[roundFormat]?.unit === "player";
   state.groups[roundId] = state.groups[roundId] || {};
   state.teeTimes[roundId] = state.teeTimes[roundId] || {};
+  state.matches[roundId] = state.matches[roundId] || {};
   const teams = state.groups[roundId];
   const tees = state.teeTimes[roundId];
+  const matches = state.matches[roundId];
   const units = unitsForAdmin(roundId);
+  const hcps = roundHandicaps(roundId);
+  const noun = individual ? "player" : "team";
 
-  // Tee times are filtered for display, never rewritten here: switching a round's format
-  // back and forth must not quietly wipe the tee sheet.
-  const shown = t => (t.unitIds || []).filter(u => units[u]);
+  // Entries are filtered for display, never rewritten here: switching a round's format back
+  // and forth must not quietly wipe the tee sheet or the matches.
+  const shown = list => (list || []).filter(u => units[u]);
+  const teeOf = u => Object.values(tees).find(t => shown(t.unitIds).includes(u));
+  const chip = (label, attr, value, title) =>
+    `<span class="member">${esc(label)}<button class="member-x" ${attr}="${esc(value)}" title="${title}">&times;</button></span>`;
+  const hcpText = u => {
+    if (!hcps) return "&mdash;";
+    if (f.gross) return "0";
+    if (f.teamHcp) return hcps.teamPhs[u] ?? "&mdash;";
+    return (units[u]?.playerIds || []).map(pid => hcps.playerPhs[pid] ?? "&mdash;").join(" &middot; ");
+  };
 
-  /* ---- step 1: teams ---- */
+  /* ---- teams ---- */
   let teamsHtml;
   if (individual){
     teamsHtml = `
-      <h3>1. Teams</h3>
-      <p class="hint" style="margin:0 0 12px;">${esc(FORMATS[roundFormat].label)} is an individual format &mdash;
-        every player competes on his own, so there are no teams to build. Go straight to tee times.</p>`;
+      <h3 class="step">Teams</h3>
+      <p class="hint" style="margin:0 0 10px;">${esc(f.label)} is an individual format &mdash; every player
+        competes on his own, so there are no teams to build.</p>`;
   } else {
     const inTeam = new Set(Object.values(teams).flatMap(g => g.playerIds || []));
     const free = Object.entries(state.roster).filter(([id]) => !inTeam.has(id));
+    const addOptions = `<option value="">+ player</option>` +
+      free.map(([id, p]) => `<option value="${id}">${esc(p.name)}</option>`).join("");
     teamsHtml = `
-      <h3>1. Teams &mdash; who plays together for the score</h3>
-      <p class="hint" style="margin:0 0 10px;">${esc(TEAM_SIZE_HINT[FORMATS[roundFormat].family] || "")}</p>
-      <div class="checklist" id="unassignedList">
-        ${free.length ? free.map(([id, p]) => `
-          <label class="check-item ${selectedForGroup.has(id) ? "selected" : ""}" data-id="${id}">
-            <input type="checkbox" ${selectedForGroup.has(id) ? "checked" : ""}>${esc(p.name)}
-          </label>`).join("") : `<p>Everyone's on a team.</p>`}
-      </div>
-      <button class="primary" id="makeGroupBtn" ${selectedForGroup.size ? "" : "disabled"}>
-        Create team of ${selectedForGroup.size || "&hellip;"}
-      </button>
-      <div id="groupsList" style="margin-top:10px;">
-        ${Object.entries(teams).map(([gid, g]) => `
-          <div class="group-row" data-gid="${gid}">
-            <span class="grow">
-              ${(g.playerIds || []).map(pid => `<span class="member">${esc(state.roster[pid]?.name || "?")}
-                <button class="member-x" data-drop="${pid}" title="Take off this team">&times;</button></span>`).join("")}
-            </span>
-            ${selectedForGroup.size ? `<button data-add-to="${gid}">+ Add ${selectedForGroup.size}</button>` : ""}
-            <button class="danger" data-del-group="${gid}">Remove</button>
-          </div>`).join("") || `<p>No teams yet.</p>`}
+      <h3 class="step">Teams <span class="hint">&middot; ${esc(TEAM_SIZE_HINT[f.family] || "")}</span></h3>
+      <div class="grid-scroll"><table class="grid">
+        <tr><th class="n">#</th><th>Team name</th><th>Players</th><th class="c">Game hcp</th><th>Tee time</th><th></th></tr>
+        ${Object.entries(teams).map(([gid, g], i) => `
+          <tr data-gid="${gid}">
+            <td class="n">${i + 1}</td>
+            <td><input data-team-name value="${esc(g.name || "")}" placeholder="Team ${i + 1}"></td>
+            <td>
+              ${(g.playerIds || []).map(pid => chip(state.roster[pid]?.name || "?", "data-drop", pid, "Take off this team")).join("")}
+              ${free.length ? `<select class="add" data-add-player>${addOptions}</select>` : ""}
+            </td>
+            <td class="c">${(g.playerIds || []).length ? hcpText(gid) : "&mdash;"}</td>
+            <td>${esc(teeOf(gid)?.start || "") || "&mdash;"}</td>
+            <td class="c"><button class="icon danger-x" data-del-group title="Remove team">&times;</button></td>
+          </tr>`).join("") || `<tr><td colspan="6" class="empty-row">No teams yet.</td></tr>`}
+      </table></div>
+      <div class="grid-foot">
+        <button data-new-team>+ New team</button>
+        <span class="hint" style="margin:0;">${free.length} player${free.length === 1 ? "" : "s"} not on a team</span>
       </div>`;
   }
 
-  /* ---- step 2: tee times ---- */
-  const placed = new Set(Object.values(tees).flatMap(shown));
+  /* ---- tee times ---- */
+  const placed = new Set(Object.values(tees).flatMap(t => shown(t.unitIds)));
   const loose = Object.entries(units).filter(([u]) => !placed.has(u));
-  const noun = individual ? "player" : "team";
-  const teeRows = Object.entries(tees)
-    .sort((a, b) => String(a[1].start || "").localeCompare(String(b[1].start || "")))
-    .map(([tid, t]) => {
-      const members = shown(t);
-      const players = members.reduce((n, u) => n + (units[u]?.playerIds?.length || 0), 0);
-      return `
-        <div class="group-row" data-tid="${tid}">
-          <input style="max-width:130px;" placeholder="Tee time" value="${esc(t.start || "")}" data-tt-start>
-          <span class="grow">
-            ${members.map(u => `<span class="member">${esc(unitName(units[u]))}
-              <button class="member-x" data-unit-drop="${u}" title="Take out of this tee time">&times;</button></span>`).join("")
-              || `<span class="hint" style="margin:0;">empty</span>`}
-            <span class="hint" style="margin:0;"> &middot; ${players} player${players === 1 ? "" : "s"}</span>
-          </span>
-          ${selectedUnits.size ? `<button data-unit-add="${tid}">+ Add ${selectedUnits.size}</button>` : ""}
-          <button class="danger" data-del-teetime="${tid}">Remove</button>
-        </div>`;
-    }).join("");
-
+  const looseOptions = `<option value="">+ ${noun}</option>` +
+    loose.map(([u, unit]) => `<option value="${esc(u)}">${esc(unitName(unit))}</option>`).join("");
   const teeHtml = `
-    <h3 style="margin-top:20px;">2. Tee times &mdash; who goes out together</h3>
-    <p class="hint" style="margin:0 0 10px;">A tee time is only who's on the course together. It never changes
-      the teams &mdash; two teams can share a tee time and still score separately.</p>
-    <div class="checklist" id="looseUnits">
-      ${loose.length ? loose.map(([u, unit]) => `
-        <label class="check-item ${selectedUnits.has(u) ? "selected" : ""}" data-unit="${u}">
-          <input type="checkbox" ${selectedUnits.has(u) ? "checked" : ""}>${esc(unitName(unit))}
-        </label>`).join("") : `<p>Every ${noun} has a tee time.</p>`}
-    </div>
-    <button class="primary" id="makeTeeBtn" ${selectedUnits.size ? "" : "disabled"}>
-      Create tee time for ${selectedUnits.size || "&hellip;"} ${noun}${selectedUnits.size === 1 ? "" : "s"}
-    </button>
-    <div style="margin-top:10px;">${teeRows || `<p>No tee times yet.</p>`}</div>`;
+    <h3 class="step">Tee times <span class="hint">&middot; who goes out together. Two teams can share a tee time and still score separately.</span></h3>
+    <div class="grid-scroll"><table class="grid">
+      <tr><th class="n">#</th><th>Time</th><th>${individual ? "Players" : "Teams"}</th><th class="c">Players</th><th></th></tr>
+      ${Object.entries(tees)
+        .sort((a, b) => String(a[1].start || "").localeCompare(String(b[1].start || "")))
+        .map(([tid, t], i) => {
+          const members = shown(t.unitIds);
+          const players = members.reduce((n, u) => n + (units[u]?.playerIds?.length || 0), 0);
+          return `
+          <tr data-tid="${tid}">
+            <td class="n">${i + 1}</td>
+            <td><input data-tt-start value="${esc(t.start || "")}" placeholder="e.g. 8:00"></td>
+            <td>
+              ${members.map(u => chip(unitName(units[u]), "data-unit-drop", u, "Take out of this tee time")).join("")}
+              ${loose.length ? `<select class="add" data-unit-add>${looseOptions}</select>` : ""}
+            </td>
+            <td class="c">${players}</td>
+            <td class="c"><button class="icon danger-x" data-del-teetime title="Remove tee time">&times;</button></td>
+          </tr>`;
+        }).join("") || `<tr><td colspan="5" class="empty-row">No tee times yet.</td></tr>`}
+    </table></div>
+    <div class="grid-foot">
+      <button data-new-tee>+ New tee time</button>
+      <span class="hint" style="margin:0;">${loose.length} ${noun}${loose.length === 1 ? "" : "s"} without a tee time</span>
+    </div>`;
 
-  wrap.innerHTML = teamsHtml + teeHtml;
+  /* ---- matches (match play only) ---- */
+  let matchHtml = "";
+  if (match){
+    const inMatch = new Set(Object.values(matches).flatMap(m => shown(m.unitIds)));
+    const sideSelect = (idx, value) => {
+      const options = Object.entries(units)
+        .filter(([u]) => u === value || !inMatch.has(u))
+        .map(([u, unit]) => `<option value="${esc(u)}" ${u === value ? "selected" : ""}>${esc(unitName(unit))}</option>`)
+        .join("");
+      return `<select data-side="${idx}"><option value="">&mdash; pick &mdash;</option>${options}</select>`;
+    };
+    matchHtml = `
+      <h3 class="step">Matches <span class="hint">&middot; who plays whom. Handicaps are worked out within each match.</span></h3>
+      <div class="grid-scroll"><table class="grid">
+        <tr><th class="n">#</th><th>${individual ? "Player" : "Team"}</th><th class="c"></th><th>${individual ? "Player" : "Team"}</th><th class="c">Game hcp</th><th></th></tr>
+        ${Object.entries(matches).map(([mid, m], i) => {
+          const [a, b] = m.unitIds || ["", ""];
+          const ready = units[a] && units[b] && a !== b;
+          return `
+          <tr data-mid="${mid}">
+            <td class="n">${i + 1}</td>
+            <td>${sideSelect(0, a)}</td>
+            <td class="c vs">v</td>
+            <td>${sideSelect(1, b)}</td>
+            <td class="c">${ready ? hcpText(a) + ` <span class="vs">v</span> ` + hcpText(b) : "&mdash;"}</td>
+            <td class="c"><button class="icon danger-x" data-del-match title="Remove match">&times;</button></td>
+          </tr>`;
+        }).join("") || `<tr><td colspan="6" class="empty-row">No matches yet.</td></tr>`}
+      </table></div>
+      <div class="grid-foot">
+        <button data-new-match>+ New match</button>
+        <button data-matches-from-tees>Build from tee times</button>
+        <span class="hint" style="margin:0;">Every tee time with exactly two ${noun}s becomes a match.</span>
+      </div>`;
+  }
+
+  wrap.innerHTML = teamsHtml + teeHtml + matchHtml;
+
+  const dropEverywhere = u => {
+    Object.values(tees).forEach(t => { t.unitIds = (t.unitIds || []).filter(x => x !== u); });
+    Object.values(matches).forEach(m => { m.unitIds = (m.unitIds || ["", ""]).map(x => x === u ? "" : x); });
+  };
 
   /* ---- team wiring ---- */
-  const dropFromTees = gid => Object.values(tees).forEach(t => {
-    t.unitIds = (t.unitIds || []).filter(u => u !== gid);
-  });
-
-  wrap.querySelectorAll("#unassignedList .check-item").forEach(el => el.addEventListener("click", e => {
-    e.preventDefault();
-    const id = el.dataset.id;
-    if (selectedForGroup.has(id)) selectedForGroup.delete(id); else selectedForGroup.add(id);
-    renderGroups();
-  }));
-
-  wrap.querySelector("#makeGroupBtn")?.addEventListener("click", () => {
-    if (!selectedForGroup.size) return;
-    teams[uid()] = { playerIds: [...selectedForGroup] };
-    selectedForGroup.clear();
-    renderGroups();
-  });
-
-  wrap.querySelectorAll("[data-gid]").forEach(row => {
+  wrap.querySelectorAll("tr[data-gid]").forEach(row => {
     const gid = row.dataset.gid;
+    row.querySelector("[data-team-name]").addEventListener("input", e => { teams[gid].name = e.target.value; });
+    row.querySelector("[data-add-player]")?.addEventListener("change", e => {
+      if (!e.target.value) return;
+      teams[gid].playerIds = [...(teams[gid].playerIds || []), e.target.value];
+      renderRoster();
+    });
     row.querySelectorAll("[data-drop]").forEach(btn => btn.addEventListener("click", () => {
       teams[gid].playerIds = (teams[gid].playerIds || []).filter(pid => pid !== btn.dataset.drop);
-      if (!teams[gid].playerIds.length){ delete teams[gid]; dropFromTees(gid); }
-      renderGroups();
+      if (!teams[gid].playerIds.length) dropEverywhere(gid);
+      renderRoster();
     }));
-    row.querySelector("[data-add-to]")?.addEventListener("click", () => {
-      teams[gid].playerIds = [...(teams[gid].playerIds || []), ...selectedForGroup];
-      selectedForGroup.clear();
-      renderGroups();
-    });
     row.querySelector("[data-del-group]").addEventListener("click", () => {
       delete teams[gid];
-      dropFromTees(gid);
-      renderGroups();
+      dropEverywhere(gid);
+      renderRoster();
     });
+  });
+  wrap.querySelector("[data-new-team]")?.addEventListener("click", () => {
+    teams[uid()] = { name: "", playerIds: [] };
+    renderGroups();
   });
 
   /* ---- tee time wiring ---- */
-  wrap.querySelectorAll("#looseUnits .check-item").forEach(el => el.addEventListener("click", e => {
-    e.preventDefault();
-    const u = el.dataset.unit;
-    if (selectedUnits.has(u)) selectedUnits.delete(u); else selectedUnits.add(u);
-    renderGroups();
-  }));
-
-  wrap.querySelector("#makeTeeBtn")?.addEventListener("click", () => {
-    if (!selectedUnits.size) return;
-    tees[uid()] = { start: "", unitIds: [...selectedUnits] };
-    selectedUnits.clear();
-    renderGroups();
-  });
-
-  wrap.querySelectorAll("[data-tid]").forEach(row => {
+  wrap.querySelectorAll("tr[data-tid]").forEach(row => {
     const tid = row.dataset.tid;
     row.querySelector("[data-tt-start]").addEventListener("input", e => { tees[tid].start = e.target.value; });
+    row.querySelector("[data-unit-add]")?.addEventListener("change", e => {
+      if (!e.target.value) return;
+      tees[tid].unitIds = [...(tees[tid].unitIds || []), e.target.value];
+      renderGroups();
+    });
     row.querySelectorAll("[data-unit-drop]").forEach(btn => btn.addEventListener("click", () => {
       tees[tid].unitIds = (tees[tid].unitIds || []).filter(u => u !== btn.dataset.unitDrop);
       renderGroups();
     }));
-    row.querySelector("[data-unit-add]")?.addEventListener("click", () => {
-      tees[tid].unitIds = [...(tees[tid].unitIds || []), ...selectedUnits];
-      selectedUnits.clear();
-      renderGroups();
-    });
     row.querySelector("[data-del-teetime]").addEventListener("click", () => {
       delete tees[tid];
       renderGroups();
     });
   });
+  wrap.querySelector("[data-new-tee]")?.addEventListener("click", () => {
+    tees[uid()] = { start: "", unitIds: [] };
+    renderGroups();
+  });
+
+  /* ---- match wiring ---- */
+  wrap.querySelectorAll("tr[data-mid]").forEach(row => {
+    const mid = row.dataset.mid;
+    row.querySelectorAll("[data-side]").forEach(sel => sel.addEventListener("change", () => {
+      const sides = [...(matches[mid].unitIds || ["", ""])];
+      sides[+sel.dataset.side] = sel.value;
+      matches[mid].unitIds = sides;
+      renderRoster();
+    }));
+    row.querySelector("[data-del-match]").addEventListener("click", () => {
+      delete matches[mid];
+      renderRoster();
+    });
+  });
+  wrap.querySelector("[data-new-match]")?.addEventListener("click", () => {
+    matches[uid()] = { unitIds: ["", ""] };
+    renderGroups();
+  });
+  wrap.querySelector("[data-matches-from-tees]")?.addEventListener("click", () => {
+    const taken = new Set(Object.values(matches).flatMap(m => shown(m.unitIds)));
+    Object.values(tees).forEach(t => {
+      const pair = shown(t.unitIds);
+      if (pair.length === 2 && !pair.some(u => taken.has(u))){
+        matches[uid()] = { unitIds: pair };
+        pair.forEach(u => taken.add(u));
+      }
+    });
+    renderRoster();
+  });
 }
+
 
 /* ---------- event fields ---------- */
 
@@ -839,6 +997,7 @@ function renderWeights(){
         const current = [...(weightsFor(fmt, size, state.event.teamWeights) || Array(size).fill(0))];
         current[+inp.dataset.wi] = +inp.value;
         state.event.teamWeights[fmt][size] = current;
+        renderRoster();
         // Update just this row's total; re-rendering would throw focus out of the box.
         const total = current.reduce((a, b) => a + (+b || 0), 0);
         row.querySelector(".hint").textContent = `totals ${total}%`;
@@ -852,69 +1011,36 @@ document.getElementById("resetWeightsBtn").addEventListener("click", () => {
   renderWeights();
 });
 
-/* ---------- format ---------- */
-
-const eventFormat = () => state.event.format || DEFAULT_FORMAT;
+/* ---------- format and handicap sections ---------- */
 
 const TEAM_SIZE_HINT = {
   "best-ball": "Best ball is usually played in 2-man teams.",
   "shamble": "Shamble is usually played in teams of 2 to 4.",
   "scramble": "Scramble is usually played in teams of 2 to 4.",
   "alternate-shot": "Alternate shot is played in 2-man teams.",
-  "total": "Every score on the team counts, so any team size works."
+  "total": "Every player's score is added up, so any team size works."
 };
 
-// Every format actually in play: the event's, plus any round that overrides it.
+// Every format being played across the rounds.
 function usedFormats(){
-  const list = Object.values(state.rounds).map(r => formatOf(r, state.event));
-  return [...new Set([eventFormat(), ...list])];
+  return [...new Set(Object.values(state.rounds).map(r => formatOf(r, state.event)))];
 }
 
-// Older saves stored a format on every round and none on the event. Adopt the first
-// round's as the event format, and let rounds that match it simply follow the event.
+// Format and play belong to each round. Older saves kept a format on the event and left
+// rounds empty to follow it — give those rounds the event's format explicitly, then drop it.
 function normaliseFormats(){
-  if (!state.event.format){
-    const first = Object.values(state.rounds)[0]?.format;
-    state.event.format = FORMATS[first] ? first : DEFAULT_FORMAT;
-  }
-  Object.values(state.rounds).forEach(r => { if (r.format === state.event.format) r.format = ""; });
-}
-
-function setEventFormat(next){
-  const previous = eventFormat();
-  // Rounds following the event keep following it; a round deliberately given a different
-  // format keeps its own.
-  Object.values(state.rounds).forEach(r => { if (!r.format || r.format === previous) r.format = ""; });
-  state.event.format = next;
-  renderAll();
-}
-
-function renderFormat(){
-  const current = FORMATS[eventFormat()] || FORMATS[DEFAULT_FORMAT];
-
-  const box = document.getElementById("formatFamilies");
-  box.innerHTML = Object.entries(FORMAT_FAMILIES).map(([fam, info]) => `
-    <button type="button" class="fmt-card ${current.family === fam ? "selected" : ""}" data-family="${fam}">
-      <b>${esc(info.label)}</b><span>${esc(info.blurb)}</span>
-    </button>`).join("");
-  box.querySelectorAll("[data-family]").forEach(btn => btn.addEventListener("click", () =>
-    setEventFormat(formatFor(btn.dataset.family, current.gross))));
-
-  document.querySelectorAll("#formatBasis button").forEach(btn => {
-    btn.classList.toggle("active", (btn.dataset.gross === "1") === current.gross);
-    btn.onclick = () => setEventFormat(formatFor(current.family, btn.dataset.gross === "1"));
+  const legacy = FORMATS[state.event.format] ? state.event.format : DEFAULT_FORMAT;
+  Object.values(state.rounds).forEach(r => {
+    if (!FORMATS[r.format]) r.format = legacy;
+    if (r.play !== "match") r.play = "stroke";
   });
+  delete state.event.format;
+}
 
-  document.getElementById("formatSummary").innerHTML =
-    "<b>" + esc(current.label) + "</b> &mdash; " +
-    (current.gross ? "straight strokes, no handicaps."
-      : current.teamHcp ? "one team ball, netted off a combined team handicap."
-      : "each player plays off his own handicap.") +
-    (current.unit === "player" ? " Every player has his own leaderboard line." : " Teams are scored as one unit.");
-
-  // The sections below follow the formats actually in play.
+// Handicap settings only show when some round actually uses them.
+function renderHandicapSections(){
   const formats = usedFormats().map(k => FORMATS[k]).filter(Boolean);
-  const anyNet = formats.some(f => !f.gross);
+  const anyNet = !formats.length || formats.some(f => !f.gross);
   const anyTeamBall = formats.some(f => f.teamHcp);
   document.getElementById("hcpRow").classList.toggle("hidden", !anyNet);
   document.getElementById("hcpHint").classList.toggle("hidden", !anyNet);
@@ -932,16 +1058,17 @@ function renderEvent(){
 
 function renderAll(){
   normaliseFormats();
-  renderFormat(); renderEvent(); renderWeights(); renderCourses(); renderPlayerTeeOptions();
-  renderRoster(); renderRounds(); renderGroups();
+  renderHandicapSections(); renderEvent(); renderWeights(); renderCourses(); renderPlayerTeeOptions();
+  renderRoster(); renderRounds();
 }
+
 
 /* ---------- wiring ---------- */
 
 document.getElementById("eventName").addEventListener("input", e => state.event.name = e.target.value);
 document.getElementById("allowancePct").addEventListener("input", e => { state.event.allowancePct = +e.target.value; renderRoster(); });
-document.getElementById("allowanceMode").addEventListener("change", e => { state.event.allowanceMode = e.target.value; renderRoster(); });
-document.getElementById("teamHcpMode").addEventListener("change", e => state.event.teamHcpMode = e.target.value);
+document.getElementById("allowanceMode").addEventListener("change", e => { state.event.allowanceMode = e.target.value; renderRoster(); renderRounds(); });
+document.getElementById("teamHcpMode").addEventListener("change", e => { state.event.teamHcpMode = e.target.value; renderRoster(); renderRounds(); });
 
 document.getElementById("addCourseBtn").addEventListener("click", () => {
   state.courses[uid()] = { name: "", location: "", holesCount: 18, holes: defaultHoles(18), tees: [] };
@@ -953,11 +1080,12 @@ document.getElementById("addRoundBtn").addEventListener("click", () => {
   state.rounds[uid()] = {
     name: `Round ${Object.keys(state.rounds).length + 1}`,
     courseId: firstCourse,
-    format: "",   // follow the event format
+    format: DEFAULT_FORMAT,
+    play: "stroke",
     maxScore: DEFAULT_MAX_RULE,
     order: Object.keys(state.rounds).length
   };
-  renderRounds(); renderGroups();
+  renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
 });
 
 document.getElementById("addPlayerBtn").addEventListener("click", () => {
@@ -969,12 +1097,6 @@ document.getElementById("addPlayerBtn").addEventListener("click", () => {
   document.getElementById("playerName").value = "";
   document.getElementById("playerIndex").value = "";
   renderRoster();
-});
-
-document.getElementById("groupRoundSelect").addEventListener("change", () => {
-  selectedForGroup.clear();
-  selectedUnits.clear();
-  renderGroups();
 });
 
 /* ---------- spreadsheet import / export ---------- */
@@ -996,31 +1118,8 @@ function setImportStatus(msg, cls){
 }
 
 function buildTemplateRows(){
-  const courseRows = [COURSE_HEADERS];
-  const holeRows   = [HOLE_HEADERS];
-  const playerRows = [PLAYER_HEADERS];
-
-  const courses = Object.values(state.courses);
-  if (courses.length){
-    courses.forEach(c => {
-      const tees = (c.tees || []).length ? c.tees : [{ name: "", rating: "", slope: "", yards: "" }];
-      tees.forEach(t => courseRows.push([
-        c.name || "", c.location || "", c.holesCount || 18,
-        t.name || "", t.rating ?? "", t.slope ?? "", t.yards ?? ""
-      ]));
-      (c.holes || []).forEach(h => holeRows.push([c.name || "", h.number, h.par, h.si]));
-    });
-  } else {
-    // An empty console still downloads something worth filling in.
-    courseRows.push(["Example Golf Club", "City, ST", 18, "White", 71.2, 125, 6400]);
-    for (let i = 1; i <= 18; i++) holeRows.push(["Example Golf Club", i, 4, i]);
-  }
-
-  const players = Object.values(state.roster);
-  if (players.length) players.forEach(p => playerRows.push([p.name || "", p.index ?? 0, p.tee || "", p.email || ""]));
-  else playerRows.push(["Example Player", 12.4, "White", "player@example.com"]);
-
-  return { courseRows, holeRows, playerRows };
+  // Always blank — the template is for setting an event up, not a copy of what's entered.
+  return { courseRows: [COURSE_HEADERS], holeRows: [HOLE_HEADERS], playerRows: [PLAYER_HEADERS] };
 }
 
 function downloadTemplate(){
@@ -1234,6 +1333,7 @@ async function loadAll(){
         state.rounds  = state.rounds  || {};
         state.groups  = state.groups  || {};
         state.teeTimes = state.teeTimes || {};
+        state.matches = state.matches || {};
         document.getElementById("loadStatus").textContent = "loaded from server";
         renderAll();
         return;

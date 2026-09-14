@@ -10,9 +10,9 @@ For what changed recently and what's left before the event, see
 
 A static, no-build web app for scoring golf events. It was forked from a much larger KHC
 Outing app (Ryder Cup match play, two rival teams, mascot animations) and deliberately
-does **not** carry any of that over — everything here scores onto **one flat leaderboard**.
-There is no match play and no team-vs-team. If you're tempted to add them, that's almost
-certainly the wrong direction.
+does **not** carry over its fixed two-sided structure or its animations. A round is either
+**stroke play** (one flat leaderboard) or **match play** (entries paired into matches, scored
+hole by hole for points), chosen per round.
 
 It started as a single-round, twosomes-only app. It is now generalised: **any number of
 rounds, any number of courses, and teams of any size** (twosomes, threesomes, foursomes,
@@ -49,12 +49,14 @@ minute or two, no build step, no CI.
 
 No bundler, no framework:
 
-- **`index.html`** — player-facing. Code-gated login, then four tabs: Home (rounds, contests
-  and tee times), Scorecard (one card per tee time, hole by hole or the full card),
-  Leaderboard (the clubhouse board), and Stats. Reads everything from Firebase via `onValue`.
-- **`admin.html`** — commissioner-facing, code-gated. Format, event and handicap settings,
-  team weightings, spreadsheet import/export, courses, players, rounds (max score, contests),
-  and teams & tee times. Writes to Firebase on "Save all".
+- **`index.html`** — player-facing. Code-gated login, then four tabs: Home (rounds, contests,
+  tee times and matches), Scorecard (the player's own card only, hole by hole or the full card),
+  Leaderboard (the clubhouse board — tap any row for that card in a pop-up), and Stats. Reads
+  everything from Firebase via `onValue`.
+- **`admin.html`** — commissioner-facing, code-gated. Event and handicap settings, team
+  weightings, spreadsheet import, courses, players (with each player's game handicap), and
+  rounds — each holding its format, play, max score, contests, teams, tee times and matches.
+  Writes to Firebase on "Save all".
 - **`scoring.js`** — pure functions, no DOM or Firebase. Formats, handicap math, stroke
   allocation, max score, hole scoring and statistics. If you're checking or extending the
   scoring math, this is the only file that should need touching.
@@ -79,14 +81,16 @@ so net and gross come out the same.
 | Scramble | the team | one team score |
 | Shamble | the team | one per player, best counts |
 | Alternate shot | the team | one team score |
-| Total | the team | one per player, all count |
+| Aggregate | the team | one per player, all count |
 | Individual | each player | one per player |
 
-**The format is chosen for the whole event** at the top of the console (`event.format`,
-default Best ball (net)), and every round follows it unless a round is given its own
-(`round.format` empty means "follow the event" — always resolve it with `formatOf()`). The
-console adapts to the formats in play: allowance settings hide when everything is gross, and
-team weightings only show when a net scramble or alternate shot is being played.
+**Format and play are set on each round** in the console: a Net / Gross switch, a Stroke play /
+Match play switch, then the six games as cards (`round.format`, `round.play`; defaults Best ball
+(net), stroke play). Older saves kept a format on the event instead; the console moves it onto the
+rounds, and the player app reads either through `formatOf()`. The "total" game is shown as
+**Aggregate** — every player's score on the hole is added up for the team. The console adapts to
+the formats in play: allowance settings hide when everything is gross, and team weightings only
+show when a net scramble or alternate shot is being played.
 
 Two independent axes are kept separate on purpose: **what a format does to a hole**
 (`entry`) versus **who ends up on the leaderboard** (`unit`). The original KHC app fused
@@ -94,8 +98,8 @@ them, which is exactly what made it impossible to reuse. A net or gross version 
 game is just a row in `FORMATS`; a genuinely new game also needs a branch in
 `computeHoleResult`, which branches on `family`.
 
-A round can still override the event format, so a five-round trip can be scramble on day one
-and singles on day five. Teams and tee times are per round too, so they can change day to day.
+Every round has its own format, so a five-round trip can be scramble on day one and singles on
+day five. Teams, tee times and matches are set inside each round, so they can change day to day.
 
 **Best ball and shamble wait for every partner** before a hole counts. The first score in
 can look like the team's result and then change when the partner's lands, so nothing is
@@ -113,10 +117,26 @@ Two separate things, set per round in the console, on purpose:
   (teams, or players in an individual format) and never changes the teams. Two 2-man teams can
   share a tee time and still score separately.
 
-The scorecard follows the tee time: one phone keeps the whole card, with each team's boxes under
-its name and a running total per team. Anything not yet in a tee time can still be scored on its
-own card, so the app works before the tee sheet is done. Tee times are filtered for display, not
-rewritten, when a round's format changes, so switching back and forth doesn't wipe the tee sheet.
+Teams can be given a **name** (`groups/<roundId>/<teamId>/name`); the leaderboard and scorecard
+use it, with the players' surnames underneath. The console lays teams, tee times and matches out
+as spreadsheet-style tables inside each round.
+
+**The scorecard shows only the logged-in player's own card** — his tee time if he's in one (so a
+foursome of two teams is one card, each team's boxes under its name), otherwise just his team.
+Other groups are for the leaderboard: tapping a team, player or match opens its full card in a
+read-only pop-up. Tee times and matches are filtered for display, not rewritten, when a round's
+format changes, so switching back and forth doesn't wipe them.
+
+## Match play
+
+A round set to match play pairs entries into **matches** (`matches/<roundId>/<matchId>/unitIds`,
+exactly two). The console builds them by hand or from tee times (any tee time with exactly two
+entries). Each hole goes to the side with the lower net score — `matchStatus()` in `scoring.js`,
+built on `computeHoleResult()`, so best ball still waits for every partner. A match is decided the
+moment one side leads by more holes than remain, and its result is frozen there ("3&2") even
+though the group keeps scoring for statistics. Points: 1 for a win, ½ each for a halved match,
+counted only once a match is over. The leaderboard shows each match's status and a points table;
+stats add holes won, halved and lost, credited to every player on the side.
 
 ## Handicaps
 
@@ -124,8 +144,11 @@ rewritten, when a round's format changes, so switching back and forth doesn't wi
   The commissioner enters the course's tees (rating/slope) and each player's index.
 - The event-wide **allowance %** applies to every player. A player can carry his own
   `allowancePct`, which overrides it.
-- **Allowance basis** is a choice: `full` (each player off his own handicap) or
-  `off-lowest` (everyone drops by the lowest in the field, so the best player plays scratch).
+- **Allowance basis** is a choice: `full` (each player off his own handicap) or `off-lowest`.
+  **Off lowest depends on the round's play:** stroke play plays off the low man in the whole
+  field; match play plays off the low man in each match, so a player's shots depend on who he's
+  up against. Team-ball formats do the same with the team handicap. `gameHandicaps()` is the one
+  place this is worked out — the console's Game hcp column and the player app both use it.
 - **Team handicaps** (net scramble / alternate shot only) are a separate choice: `formula` or
   `off-lowest` (every team drops by the lowest team's). The formula weightings are editable in
   the console (`event.teamWeights`), ranked lowest handicap to highest; defaults are 35/15 for a
@@ -151,14 +174,15 @@ on every course. A player who plays different tees on different courses isn't su
 
 ```
 /covidcup
-  /event    { name, format, allowancePct, allowanceMode, teamHcpMode, teamWeights? }
+  /event    { name, allowancePct, allowanceMode, teamHcpMode, teamWeights? }
   /courses  { <courseId>: { name, location, holesCount,
                             holes: [{number, par, si}], tees: [{name, rating, slope, yards}] } }
   /roster   { <playerId>: { name, index, tee, email, code, allowancePct? } }
-  /rounds   { <roundId>: { name, courseId, format, order, maxScore, maxPlus?,
+  /rounds   { <roundId>: { name, courseId, format, play, order, maxScore, maxPlus?,
                            ctpOn, ctpHoles, ldOn, ldHoles } }
-  /groups   { <roundId>: { <teamId>: { playerIds: [...] } } }          teams (team formats)
+  /groups   { <roundId>: { <teamId>: { name, playerIds: [...] } } }    teams (team formats)
   /teeTimes { <roundId>: { <teeTimeId>: { start, unitIds: [...] } } }  who goes out together
+  /matches  { <roundId>: { <matchId>: { unitIds: [a, b] } } }          match play only
 
 /covidcup_scores
   /<roundId>/<teamId or p-playerId>/<holeNumber>
@@ -209,8 +233,7 @@ sheets, one row per thing, so it stays obvious to someone editing it in Excel:
 - **Holes** — Course, Hole, Par, Stroke index.
 - **Players** — Player, Handicap index, Tee, Email.
 
-The download includes whatever is already entered, so it doubles as an export. Uploading
-**replaces** courses and players wholesale.
+The download is always a blank template. Uploading **replaces** courses and players wholesale.
 
 Things that are load-bearing here:
 
@@ -251,8 +274,8 @@ like Michigan, that's still settled on the course.
 
 Gross and net, per round or Overall, and they follow the formats in view: a gross-only view
 drops the net toggle, and best ball and shamble add **Counted** — how many holes a player's
-score was the one his team used (both players on a tie). That is the stroke-play answer to
-"holes won"; true holes won and lost need match play, which this app deliberately doesn't do.
+score was the one his team used (both players on a tie). Match play rounds add **Won**,
+**Halved** and **Lost** — holes, credited to every player on the side.
 
 ## Leaderboard
 
@@ -261,7 +284,9 @@ drop cap, first names small underneath, red numbers under par. It is a deliberat
 look and does not follow the app's dark theme. Fonts come from Google Fonts (Pirata One for
 names and title, Kalam for numbers) with system fallbacks. A round shows Out, In and Total
 to par, with ties shown as "T2" and "F" once all 18 are in. With more than one round there
-is also an Overall board by player; with one round the round picker is hidden.
+is also an Overall board by player; with one round the round picker is hidden. Match play rounds
+show a match board (each match's status) and a points table instead. Tapping any row opens that
+team's, player's or match's full card in a pop-up.
 
 ## Player codes
 
@@ -312,6 +337,6 @@ can read all of them out of the page. They solve "which player am I", nothing mo
   temporarily set `apiKey: "REPLACE_ME"` — the app then runs off browser storage — and never
   commit that change.
 - **Scoring:** `node tests/run.mjs` runs every assertion over `scoring.js` — formats, gross vs
-  net, handicaps, team weightings, max score, pickups, Counted and stats. No install needed;
+  net, handicaps, team weightings, match play, max score, pickups, Counted and stats. No install needed;
   it requires Node 22.12 or newer, which loads `scoring.js` as an ES module without a
   `package.json`. Run it after any change to the scoring math.

@@ -7,11 +7,11 @@ reference** and has been kept current alongside the code.
 
 ## Short version
 
-- The app is now a general **stroke-play event app**: any number of rounds and courses, 12
-  formats (six games, each net or gross), and teams kept separate from tee times.
+- The app is now a general **event app**: any number of rounds and courses, 12 formats (six
+  games, each net or gross), stroke or match play per round, and teams kept separate from tee times.
 - **Covid Cup (planned ~Sep 26)** is one round of **2-man team net best ball, double par max**.
   That's the console's default setup.
-- **It's live and working** — version `2026-09-14.6` on GitHub Pages.
+- **It's live and working** — version `2026-09-14.7` on GitHub Pages.
 - **Database rules were published** by Andrew on Sep 9, so the project is off test mode.
 - The event itself still needs setting up, and a few things must happen before tournament day.
 
@@ -29,20 +29,21 @@ reference** and has been kept current alongside the code.
 
 In the commissioner console (`admin.html`):
 
-1. **Format** — Best ball, **Net**. That's already the default.
-2. **Event** — name and handicap allowance.
-3. **Spreadsheet setup** — download the template, fill in the course (tees with rating and slope,
-   pars, stroke indexes) and players (name, index, tee, email), upload it. Or type it all in.
-4. **Rounds** — add one round, pick the course, leave max score on double par, and tick
+1. **Event** — name and handicap allowance.
+2. **Spreadsheet setup** — download the blank template, fill in the course (tees with rating and
+   slope, pars, stroke indexes) and players (name, index, tee, email), upload it. Or type it in.
+3. **Rounds** — add one round and pick the course. Its format defaults to **Net**, **Stroke
+   play**, **Best ball** — already right for Covid Cup. Leave max score on double par, and tick
    Closest to the pin / Long drive with their hole numbers.
-5. **Teams & tee times** — step 1, build the 2-man teams. Step 2, put teams into tee times and
-   type each time. Two teams playing together go in the same tee time.
-6. **Save all.**
-7. Player codes are in the roster table. **Send code** opens your own mail app with the link and
-   code filled in.
+4. Inside the round: **Teams** — add a row per 2-man team, name it if you like, and pick its two
+   players. **Tee times** — add a row per time and pick the teams going out together.
+5. **Save all.**
+6. Player codes are in the roster table, next to each player's **Game hcp** — what he actually
+   plays off. **Send code** opens your own mail app with the link and code filled in.
 
 Players open https://phodgman22.github.io/Covid-Cup-2026/ and enter their code. Whoever keeps the
-card for a tee time scores both teams on one phone.
+card for a tee time scores both teams on one phone. The scorecard only ever shows a player's own
+card; everyone else's is a tap away on the leaderboard.
 
 ## What changed since your last commit
 
@@ -52,8 +53,9 @@ database was still empty, so nothing was migrated. Individual formats have no te
 is his own entry, keyed `p-<playerId>`. See HANDOFF.md for the full shape.
 
 **Formats and scoring.**
-- **12 formats.** Best ball, scramble, shamble, alternate shot, total and individual, each net or gross.
-- **One event format**, which each round can override.
+- **12 formats.** Best ball, scramble, shamble, alternate shot, aggregate and individual, each net or gross.
+- **Format and play set per round** — stroke play off the low man in the field, or match play off
+  the low man in each match, with a match board, points and holes won/halved/lost.
 - **Gross formats** use no handicap strokes.
 - **Max score per round**, default double par. A pickup scores the max.
 - **Best ball and shamble** only count a hole once every partner's score is in.
@@ -62,23 +64,23 @@ is his own entry, keyed `p-<playerId>`. See HANDOFF.md for the full shape.
 **Handicaps.**
 - **Course handicap** is calculated from tee rating and slope, never typed in.
 - **Allowance %** is set event-wide, with an optional per-player override.
-- **Full or off-lowest** basis.
+- **Full or off-lowest** basis. Off lowest means the low man in the field for stroke play, and the low man in each match for match play.
 - **Editable team weightings** for net scramble and alternate shot, ranked lowest to highest handicap.
 
 **Console.**
-- **Format picker first.** The sections below adapt to it: handicap settings hide for gross, and weightings only show when needed.
-- **`.xlsx` template import and export.** Re-uploading keeps existing players' codes.
+- **Each round holds its own format, teams, tee times and matches**, as spreadsheet-style tables with team names. Handicap settings hide for gross, and weightings only show when needed.
+- **Blank `.xlsx` template to fill in and upload.** Re-uploading keeps existing players' codes.
 - **Editable roster.**
-- **Teams and tee times as separate steps.**
+- **A Game hcp column** on the roster: what each player actually plays off in each round.
 - **Closest to the pin and long drive per round.**
 - **Stays unlocked per browser tab.** Typing a console code on the player screen redirects there, already unlocked.
 
 **Player app.**
 - **Four-character code login.**
-- **Hole-by-hole scorecard** on eggshell. One card per tee time, with stroke dots and the max shown.
+- **Hole-by-hole scorecard** on eggshell — only your own card (your tee time), with stroke dots and the max shown.
   You can look at later holes, but you can't score one until the current hole has a score or pickup for everyone.
 - **Full card** with birdie and bogey marks.
-- **Clubhouse-style leaderboard**, Out / In / Total.
+- **Clubhouse-style leaderboard**, Out / In / Total, or a match board and points in match play. Tap any row for that card in a pop-up.
 - **Stats tab**, gross and net, including a **Counted** column for best ball: how many holes each player's score was the one his team used.
 
 **Bugs found and fixed along the way:**
@@ -96,8 +98,8 @@ is his own entry, keyed `p-<playerId>`. See HANDOFF.md for the full shape.
   `firebase-config.js` this reads and writes the **live** database. To test without touching
   live data, temporarily set `apiKey: "REPLACE_ME"` — the app then runs off browser storage —
   and never commit that change.
-- **Tests:** `node tests/run.mjs` runs 133 assertions over the scoring math: formats,
-  handicaps, max score, pickups, stats. It needs Node 22.12 or newer and nothing to install.
+- **Tests:** `node tests/run.mjs` runs every assertion over the scoring math: formats,
+  handicaps, match play, max score, pickups, stats. It needs Node 22.12 or newer and nothing to install.
 - **Keep HANDOFF.md current.** Its "don't reintroduce" section lists bugs that were hard to spot.
 
 ## Not built, on purpose or not yet
@@ -105,8 +107,7 @@ is his own entry, keyed `p-<playerId>`. See HANDOFF.md for the full shape.
 - **No real access control.** Codes are name tags, and anyone with the link can edit any team's
   scores. The cheap next step is anonymous Firebase Auth. Enable Anonymous sign-in in the console
   **before** tightening the rules, or the app stops working.
-- **No match play.** "Holes won" doesn't exist in a stroke-play leaderboard; Counted is the
-  closest equivalent.
+- **No concessions in match play.** Matches are decided purely on holes played and scored.
 - **No round submit / attest / lock step**, unlike the Michigan app.
 - **Contest winners aren't recorded** — closest to the pin and long drive are only flagged on the hole.
 - **No SMS.** Email goes through the commissioner's own mail app.

@@ -20,8 +20,8 @@ export const FORMATS = {
   "shamble-gross":        { label: "Shamble (gross)",         family: "shamble",        gross: true,  unit: "group",  entry: "player", teamHcp: false },
   "alternate-shot":       { label: "Alternate shot (net)",    family: "alternate-shot", gross: false, unit: "group",  entry: "team",   teamHcp: true  },
   "alternate-shot-gross": { label: "Alternate shot (gross)",  family: "alternate-shot", gross: true,  unit: "group",  entry: "team",   teamHcp: false },
-  "total-net":            { label: "Total net (all count)",   family: "total",          gross: false, unit: "group",  entry: "player", teamHcp: false },
-  "total-gross":          { label: "Total gross (all count)", family: "total",          gross: true,  unit: "group",  entry: "player", teamHcp: false },
+  "total-net":            { label: "Aggregate (net)",         family: "total",          gross: false, unit: "group",  entry: "player", teamHcp: false },
+  "total-gross":          { label: "Aggregate (gross)",       family: "total",          gross: true,  unit: "group",  entry: "player", teamHcp: false },
   "individual-net":       { label: "Individual (net)",        family: "individual",     gross: false, unit: "player", entry: "player", teamHcp: false },
   "individual-gross":     { label: "Individual (gross)",      family: "individual",     gross: true,  unit: "player", entry: "player", teamHcp: false }
 };
@@ -33,7 +33,7 @@ export const FORMAT_FAMILIES = {
   "scramble":       { label: "Scramble",       blurb: "Everyone hits, the team picks the best shot and all play from there. One team score." },
   "shamble":        { label: "Shamble",        blurb: "Pick the best drive, then everyone plays his own ball in. The team takes the best score." },
   "alternate-shot": { label: "Alternate shot", blurb: "Partners take turns hitting one ball. One team score." },
-  "total":          { label: "Total",          blurb: "Everyone plays his own ball, and every score counts toward the team." },
+  "total":          { label: "Aggregate",      blurb: "Everyone plays his own ball, and every player's score on the hole is added up for the team." },
   "individual":     { label: "Individual",     blurb: "Classic stroke play. Every player is on his own." }
 };
 
@@ -143,6 +143,57 @@ export function teamHandicaps(format, groups, playerPhs, mode = "formula", table
   }
   return out;
 }
+
+/**
+ * What every player (and team) actually receives for one round's game, as
+ * { playerPhs: { playerId: strokes }, teamPhs: { unitId: strokes } }.
+ *
+ * Stroke play plays off the low man in the whole field. Match play plays off the low man in
+ * each match, so the same player gets different shots depending on who he's up against.
+ * "full" skips the subtraction either way. Team-ball formats apply the same idea to the team
+ * handicap (teamHcpMode), and gross formats give nothing to anybody. The console's Game hcp
+ * column and the player app both come through here, so they can't disagree.
+ */
+export function gameHandicaps({ roster = {}, course, format, play = "stroke", allowancePct = 100,
+                                allowanceMode = "full", teamHcpMode = "formula", teamWeights,
+                                units = {}, matches = [] } = {}){
+  const f = FORMATS[format] || FORMATS[DEFAULT_FORMAT];
+  const playerPhs = {};
+  const teamPhs = {};
+
+  if (f.gross){
+    Object.keys(roster).forEach(id => { playerPhs[id] = 0; });
+    Object.keys(units).forEach(u => { teamPhs[u] = 0; });
+    return { playerPhs, teamPhs };
+  }
+
+  if (play !== "match"){
+    Object.assign(playerPhs, playingHandicaps(roster, course, { allowancePct, allowanceMode }));
+    if (f.teamHcp) Object.assign(teamPhs, teamHandicaps(format, units, playerPhs, teamHcpMode, teamWeights));
+    return { playerPhs, teamPhs };
+  }
+
+  const full = playingHandicaps(roster, course, { allowancePct, allowanceMode: "full" });
+  Object.assign(playerPhs, full);
+  const baseTeam = f.teamHcp ? teamHandicaps(format, units, full, "formula", teamWeights) : {};
+  Object.assign(teamPhs, baseTeam);
+
+  (matches || []).forEach(m => {
+    const sides = (m.unitIds || []).filter(u => units[u]);
+    if (sides.length !== 2 || sides[0] === sides[1]) return;
+    if (f.teamHcp){
+      if (teamHcpMode !== "off-lowest") return;
+      const low = Math.min(...sides.map(u => baseTeam[u] ?? 0));
+      sides.forEach(u => { teamPhs[u] = (baseTeam[u] ?? 0) - low; });
+    } else if (allowanceMode === "off-lowest"){
+      const ids = sides.flatMap(u => units[u].playerIds || []);
+      const low = Math.min(...ids.map(id => full[id] ?? 0));
+      ids.forEach(id => { playerPhs[id] = (full[id] ?? 0) - low; });
+    }
+  });
+  return { playerPhs, teamPhs };
+}
+
 
 /**
  * Strokes received on one hole. A hole gives a stroke once the handicap reaches its
@@ -278,6 +329,57 @@ export function roundTotals(format, holes, scores, ctx){
   });
   return { total, thru, toPar: total - par };
 }
+
+/* ---------- match play ---------- */
+
+// Who took one hole: "A", "B", "H" for halved, or null until both sides have a result.
+// Each side is scored exactly as it would be in stroke play, so best ball still waits for
+// every partner before the hole can be decided.
+export function matchHoleResult(format, hole, entries, ctxs){
+  const a = computeHoleResult(format, hole, entries?.[0], ctxs?.[0]);
+  const b = computeHoleResult(format, hole, entries?.[1], ctxs?.[1]);
+  if (!a || !b) return null;
+  return a.net < b.net ? "A" : b.net < a.net ? "B" : "H";
+}
+
+/**
+ * The state of one match, from each side's scores ({ holeNumber: entry }) and hole context.
+ *
+ * A match is decided the moment one side leads by more holes than remain, and its result is
+ * frozen there ("3&2") — the group keeps scoring for statistics, but those holes can't change
+ * who won. `points` is [a, b]: 1 for a win, ½ each for a halve, null until the match is over.
+ */
+export function matchStatus(format, holes, sideScores, ctxs){
+  const list = holes || [];
+  const total = list.length;
+  let a = 0, b = 0, thru = 0, decided = null;
+  const results = [];
+
+  list.forEach(h => {
+    const r = matchHoleResult(format, h, [sideScores?.[0]?.[h.number], sideScores?.[1]?.[h.number]], ctxs);
+    if (!r) return;
+    thru += 1;
+    if (r === "A") a += 1;
+    else if (r === "B") b += 1;
+    results.push({ hole: h.number, result: r });
+    if (!decided && Math.abs(a - b) > total - thru) decided = { up: a - b, remaining: total - thru };
+  });
+
+  const up = decided ? decided.up : a - b;
+  const finished = !!decided || (total > 0 && thru === total);
+  const leader = up > 0 ? "A" : up < 0 ? "B" : null;
+
+  let label = "";
+  if (thru){
+    if (decided && decided.remaining > 0) label = Math.abs(up) + "&" + decided.remaining;
+    else if (finished) label = up === 0 ? "Halved" : Math.abs(up) + " UP";
+    else label = up === 0 ? "AS" : Math.abs(up) + " UP";
+  }
+
+  const points = finished && thru ? (up > 0 ? [1, 0] : up < 0 ? [0, 1] : [0.5, 0.5]) : null;
+  return { thru, total, won: [a, b], up, leader, finished, winner: finished ? leader : null, label, points, results };
+}
+
 
 // Adds up per-round totals into one event-wide line for the leaderboard.
 export function eventTotals(roundResults){
