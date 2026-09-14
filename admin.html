@@ -185,9 +185,9 @@ th{color:var(--dim);font-weight:500;}
   </div>
 
   <div class="card">
-    <h2>Groups</h2>
-    <p>Build groups of any size &mdash; twosomes, threesomes, foursomes, whatever the round needs.
-      Groups are set per round, so pairings can change day to day.</p>
+    <h2>Teams &amp; tee times</h2>
+    <p>Two separate steps for each round. <b>Teams</b> are who plays together for the score, and
+      depend on the format. <b>Tee times</b> are who goes out on the course together.</p>
     <div class="row">
       <div><label>Round</label><select id="groupRoundSelect"></select></div>
     </div>
@@ -226,7 +226,8 @@ const state = {
   courses: {}, // id -> { name, location, holesCount, holes:[{number,par,si,yards}], tees:[{name,rating,slope,yards}] }
   roster:  {}, // id -> { name, index, tee, code, allowancePct? }
   rounds:  {}, // id -> { name, courseId, format, order }
-  groups:  {}  // roundId -> { groupId: { playerIds:[...], start } }
+  groups:  {}, // roundId -> { teamId: { playerIds:[...] } } — the teams that score together
+  teeTimes: {} // roundId -> { teeTimeId: { start, unitIds:[teamId or "p-<playerId>"] } }
 };
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -536,7 +537,7 @@ function renderRounds(){
       </div>
       <p class="hint">${FORMATS[r.format]?.unit === "player"
         ? "Each player gets his own leaderboard line in this round."
-        : "The group is scored as one unit in this round."}
+        : "Each team is scored as one unit in this round."}
         ${FORMATS[r.format]?.entry === "team"
           ? " One score entered per group per hole."
           : " One score entered per player per hole."}</p>
@@ -554,6 +555,7 @@ function renderRounds(){
     box.querySelector("[data-del-round]").addEventListener("click", () => {
       delete state.rounds[id];
       delete state.groups[id];
+      delete state.teeTimes[id];
       renderRounds(); renderGroups();
     });
   });
@@ -575,45 +577,121 @@ function renderGroupRoundSelect(){
   if (rounds.some(([id]) => id === current)) sel.value = current;
 }
 
+// The competing entries for a round. Team formats use the teams built below; individual
+// formats have no teams — every player on the roster is his own entry, keyed "p-<id>".
+function unitsForAdmin(roundId){
+  const round = state.rounds[roundId];
+  if (FORMATS[round?.format]?.unit === "player"){
+    const out = {};
+    Object.keys(state.roster).forEach(pid => { out["p-" + pid] = { playerIds: [pid] }; });
+    return out;
+  }
+  return state.groups[roundId] || {};
+}
+
+const unitName = unit => (unit?.playerIds || []).map(pid => state.roster[pid]?.name || "?").join(" / ");
+
+const selectedUnits = new Set();
+
 function renderGroups(){
   const roundId = document.getElementById("groupRoundSelect").value;
   const wrap = document.getElementById("groupBuilder");
+  const round = state.rounds[roundId];
 
-  if (!roundId || !state.rounds[roundId]){
-    wrap.innerHTML = `<p>Add a round first, then build its groups here.</p>`;
+  if (!roundId || !round){
+    wrap.innerHTML = `<p>Add a round first, then set up its teams and tee times here.</p>`;
     return;
   }
 
+  const individual = FORMATS[round.format]?.unit === "player";
   state.groups[roundId] = state.groups[roundId] || {};
-  const roundGroups = state.groups[roundId];
-  const assigned = new Set(Object.values(roundGroups).flatMap(g => g.playerIds || []));
-  const unassigned = Object.entries(state.roster).filter(([id]) => !assigned.has(id));
+  state.teeTimes[roundId] = state.teeTimes[roundId] || {};
+  const teams = state.groups[roundId];
+  const tees = state.teeTimes[roundId];
+  const units = unitsForAdmin(roundId);
 
-  wrap.innerHTML = `
-    <h3>Unassigned (${unassigned.length})</h3>
-    <div class="checklist" id="unassignedList">
-      ${unassigned.length ? unassigned.map(([id, p]) => `
-        <label class="check-item ${selectedForGroup.has(id) ? "selected" : ""}" data-id="${id}">
-          <input type="checkbox" ${selectedForGroup.has(id) ? "checked" : ""}>${esc(p.name)}
-        </label>`).join("") : `<p>Everyone's in a group.</p>`}
-    </div>
-    <button class="primary" id="makeGroupBtn" ${selectedForGroup.size ? "" : "disabled"}>
-      Create group of ${selectedForGroup.size || "&hellip;"}
-    </button>
-    <h3 style="margin-top:16px;">Groups (${Object.keys(roundGroups).length})</h3>
-    <div id="groupsList">
-      ${Object.entries(roundGroups).map(([gid, g]) => `
-        <div class="group-row" data-gid="${gid}">
+  // Tee times are filtered for display, never rewritten here: switching a round's format
+  // back and forth must not quietly wipe the tee sheet.
+  const shown = t => (t.unitIds || []).filter(u => units[u]);
+
+  /* ---- step 1: teams ---- */
+  let teamsHtml;
+  if (individual){
+    teamsHtml = `
+      <h3>1. Teams</h3>
+      <p class="hint" style="margin:0 0 12px;">${esc(FORMATS[round.format].label)} is an individual format &mdash;
+        every player competes on his own, so there are no teams to build. Go straight to tee times.</p>`;
+  } else {
+    const inTeam = new Set(Object.values(teams).flatMap(g => g.playerIds || []));
+    const free = Object.entries(state.roster).filter(([id]) => !inTeam.has(id));
+    teamsHtml = `
+      <h3>1. Teams &mdash; who plays together for the score</h3>
+      <div class="checklist" id="unassignedList">
+        ${free.length ? free.map(([id, p]) => `
+          <label class="check-item ${selectedForGroup.has(id) ? "selected" : ""}" data-id="${id}">
+            <input type="checkbox" ${selectedForGroup.has(id) ? "checked" : ""}>${esc(p.name)}
+          </label>`).join("") : `<p>Everyone's on a team.</p>`}
+      </div>
+      <button class="primary" id="makeGroupBtn" ${selectedForGroup.size ? "" : "disabled"}>
+        Create team of ${selectedForGroup.size || "&hellip;"}
+      </button>
+      <div id="groupsList" style="margin-top:10px;">
+        ${Object.entries(teams).map(([gid, g]) => `
+          <div class="group-row" data-gid="${gid}">
+            <span class="grow">
+              ${(g.playerIds || []).map(pid => `<span class="member">${esc(state.roster[pid]?.name || "?")}
+                <button class="member-x" data-drop="${pid}" title="Take off this team">&times;</button></span>`).join("")}
+            </span>
+            ${selectedForGroup.size ? `<button data-add-to="${gid}">+ Add ${selectedForGroup.size}</button>` : ""}
+            <button class="danger" data-del-group="${gid}">Remove</button>
+          </div>`).join("") || `<p>No teams yet.</p>`}
+      </div>`;
+  }
+
+  /* ---- step 2: tee times ---- */
+  const placed = new Set(Object.values(tees).flatMap(shown));
+  const loose = Object.entries(units).filter(([u]) => !placed.has(u));
+  const noun = individual ? "player" : "team";
+  const teeRows = Object.entries(tees)
+    .sort((a, b) => String(a[1].start || "").localeCompare(String(b[1].start || "")))
+    .map(([tid, t]) => {
+      const members = shown(t);
+      const players = members.reduce((n, u) => n + (units[u]?.playerIds?.length || 0), 0);
+      return `
+        <div class="group-row" data-tid="${tid}">
+          <input style="max-width:130px;" placeholder="Tee time" value="${esc(t.start || "")}" data-tt-start>
           <span class="grow">
-            ${(g.playerIds || []).map(pid => `<span class="member">${esc(state.roster[pid]?.name || "?")}
-              <button class="member-x" data-drop="${pid}" title="Take out of this group">&times;</button></span>`).join("")}
-            <span class="hint" style="margin:0;"> &middot; ${(g.playerIds || []).length} players</span>
+            ${members.map(u => `<span class="member">${esc(unitName(units[u]))}
+              <button class="member-x" data-unit-drop="${u}" title="Take out of this tee time">&times;</button></span>`).join("")
+              || `<span class="hint" style="margin:0;">empty</span>`}
+            <span class="hint" style="margin:0;"> &middot; ${players} player${players === 1 ? "" : "s"}</span>
           </span>
-          <input style="max-width:150px;" placeholder="Tee time / start hole" value="${esc(g.start || "")}" data-gf="start">
-          ${selectedForGroup.size ? `<button data-add-to="${gid}">+ Add ${selectedForGroup.size}</button>` : ""}
-          <button class="danger" data-del-group="${gid}">Remove</button>
-        </div>`).join("") || `<p>No groups yet.</p>`}
-    </div>`;
+          ${selectedUnits.size ? `<button data-unit-add="${tid}">+ Add ${selectedUnits.size}</button>` : ""}
+          <button class="danger" data-del-teetime="${tid}">Remove</button>
+        </div>`;
+    }).join("");
+
+  const teeHtml = `
+    <h3 style="margin-top:20px;">2. Tee times &mdash; who goes out together</h3>
+    <p class="hint" style="margin:0 0 10px;">A tee time is only who's on the course together. It never changes
+      the teams &mdash; two teams can share a tee time and still score separately.</p>
+    <div class="checklist" id="looseUnits">
+      ${loose.length ? loose.map(([u, unit]) => `
+        <label class="check-item ${selectedUnits.has(u) ? "selected" : ""}" data-unit="${u}">
+          <input type="checkbox" ${selectedUnits.has(u) ? "checked" : ""}>${esc(unitName(unit))}
+        </label>`).join("") : `<p>Every ${noun} has a tee time.</p>`}
+    </div>
+    <button class="primary" id="makeTeeBtn" ${selectedUnits.size ? "" : "disabled"}>
+      Create tee time for ${selectedUnits.size || "&hellip;"} ${noun}${selectedUnits.size === 1 ? "" : "s"}
+    </button>
+    <div style="margin-top:10px;">${teeRows || `<p>No tee times yet.</p>`}</div>`;
+
+  wrap.innerHTML = teamsHtml + teeHtml;
+
+  /* ---- team wiring ---- */
+  const dropFromTees = gid => Object.values(tees).forEach(t => {
+    t.unitIds = (t.unitIds || []).filter(u => u !== gid);
+  });
 
   wrap.querySelectorAll("#unassignedList .check-item").forEach(el => el.addEventListener("click", e => {
     e.preventDefault();
@@ -624,35 +702,59 @@ function renderGroups(){
 
   wrap.querySelector("#makeGroupBtn")?.addEventListener("click", () => {
     if (!selectedForGroup.size) return;
-    roundGroups[uid()] = { playerIds: [...selectedForGroup], start: "" };
+    teams[uid()] = { playerIds: [...selectedForGroup] };
     selectedForGroup.clear();
     renderGroups();
   });
 
-  wrap.querySelectorAll(".group-row").forEach(row => {
+  wrap.querySelectorAll("[data-gid]").forEach(row => {
     const gid = row.dataset.gid;
-    row.querySelector("[data-gf='start']").addEventListener("input", e => {
-      roundGroups[gid].start = e.target.value;
-    });
-
-    // Pull one player out without tearing down the group — the tournament-morning case
-    // where somebody doesn't show.
     row.querySelectorAll("[data-drop]").forEach(btn => btn.addEventListener("click", () => {
-      const g = roundGroups[gid];
-      g.playerIds = (g.playerIds || []).filter(pid => pid !== btn.dataset.drop);
-      if (!g.playerIds.length) delete roundGroups[gid];
+      teams[gid].playerIds = (teams[gid].playerIds || []).filter(pid => pid !== btn.dataset.drop);
+      if (!teams[gid].playerIds.length){ delete teams[gid]; dropFromTees(gid); }
       renderGroups();
     }));
-
     row.querySelector("[data-add-to]")?.addEventListener("click", () => {
-      const g = roundGroups[gid];
-      g.playerIds = [...(g.playerIds || []), ...selectedForGroup];
+      teams[gid].playerIds = [...(teams[gid].playerIds || []), ...selectedForGroup];
       selectedForGroup.clear();
       renderGroups();
     });
-
     row.querySelector("[data-del-group]").addEventListener("click", () => {
-      delete roundGroups[gid];
+      delete teams[gid];
+      dropFromTees(gid);
+      renderGroups();
+    });
+  });
+
+  /* ---- tee time wiring ---- */
+  wrap.querySelectorAll("#looseUnits .check-item").forEach(el => el.addEventListener("click", e => {
+    e.preventDefault();
+    const u = el.dataset.unit;
+    if (selectedUnits.has(u)) selectedUnits.delete(u); else selectedUnits.add(u);
+    renderGroups();
+  }));
+
+  wrap.querySelector("#makeTeeBtn")?.addEventListener("click", () => {
+    if (!selectedUnits.size) return;
+    tees[uid()] = { start: "", unitIds: [...selectedUnits] };
+    selectedUnits.clear();
+    renderGroups();
+  });
+
+  wrap.querySelectorAll("[data-tid]").forEach(row => {
+    const tid = row.dataset.tid;
+    row.querySelector("[data-tt-start]").addEventListener("input", e => { tees[tid].start = e.target.value; });
+    row.querySelectorAll("[data-unit-drop]").forEach(btn => btn.addEventListener("click", () => {
+      tees[tid].unitIds = (tees[tid].unitIds || []).filter(u => u !== btn.dataset.unitDrop);
+      renderGroups();
+    }));
+    row.querySelector("[data-unit-add]")?.addEventListener("click", () => {
+      tees[tid].unitIds = [...(tees[tid].unitIds || []), ...selectedUnits];
+      selectedUnits.clear();
+      renderGroups();
+    });
+    row.querySelector("[data-del-teetime]").addEventListener("click", () => {
+      delete tees[tid];
       renderGroups();
     });
   });
@@ -767,6 +869,7 @@ document.getElementById("addPlayerBtn").addEventListener("click", () => {
 
 document.getElementById("groupRoundSelect").addEventListener("change", () => {
   selectedForGroup.clear();
+  selectedUnits.clear();
   renderGroups();
 });
 
@@ -1026,6 +1129,7 @@ async function loadAll(){
         state.roster  = state.roster  || {};
         state.rounds  = state.rounds  || {};
         state.groups  = state.groups  || {};
+        state.teeTimes = state.teeTimes || {};
         document.getElementById("loadStatus").textContent = "loaded from server";
         renderAll();
         return;

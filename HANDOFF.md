@@ -89,6 +89,23 @@ day five. Groups are per round too, so pairings can change day to day.
 can look like the team's result and then change when the partner's lands, so nothing is
 decided off a half-filled hole — the same rule the Michigan app uses.
 
+## Teams and tee times
+
+Two separate things, set per round in the console, on purpose:
+
+- **Teams** (`groups`) are who scores together, and depend on the format. Team formats use the
+  teams the commissioner builds. **Individual formats have no teams** — every roster player is
+  his own entry, keyed `"p-<playerId>"` (see `unitsFor()`). Scores are filed under that entry,
+  so `covidcup_scores/<roundId>/<teamId or p-playerId>/...`.
+- **Tee times** (`teeTimes`) are only who's on the course together. A tee time lists entries
+  (teams, or players in an individual format) and never changes the teams. Two 2-man teams can
+  share a tee time and still score separately.
+
+The scorecard follows the tee time: one phone keeps the whole card, with each team's boxes under
+its name and a running total per team. Anything not yet in a tee time can still be scored on its
+own card, so the app works before the tee sheet is done. Tee times are filtered for display, not
+rewritten, when a round's format changes, so switching back and forth doesn't wipe the tee sheet.
+
 ## Handicaps
 
 - Course handicap is always **calculated**, never typed: `index x (slope/113) + (rating - par)`.
@@ -127,7 +144,8 @@ on every course. A player who plays different tees on different courses isn't su
   /roster   { <playerId>: { name, index, tee, code, allowancePct? } }
   /rounds   { <roundId>: { name, courseId, format, order, maxScore, maxPlus?,
                            ctpOn, ctpHoles, ldOn, ldHoles } }
-  /groups   { <roundId>: { <groupId>: { playerIds: [...], start } } }
+  /groups   { <roundId>: { <teamId>: { playerIds: [...] } } }          teams (team formats)
+  /teeTimes { <roundId>: { <teeTimeId>: { start, unitIds: [...] } } }  who goes out together
 
 /covidcup_scores
   /<roundId>/<groupId>/<holeNumber>

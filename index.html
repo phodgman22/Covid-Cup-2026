@@ -99,6 +99,10 @@ button.link{background:none;border:none;color:var(--accent);cursor:pointer;font-
 .contest.ld{background:#2e6a3b;}
 .contest.mini{font-size:9px;padding:1px 5px;margin:0 1px;}
 .gate-hint{font-size:12px;color:#9a3b1f;margin:12px 0 0;}
+.team-head{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin:14px 0 0;}
+.card-totals{margin-top:14px;display:flex;flex-direction:column;gap:6px;}
+.tt-name{font-weight:700;color:var(--text);min-width:130px;}
+table.scard tr.unit td{background:var(--surface3);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;text-align:left;}
 .next-contest{font-size:12px;color:var(--muted);margin:10px 0 0;}
 
 /* full card */
@@ -213,7 +217,7 @@ footer{text-align:center;color:var(--dim);font-size:11px;padding:16px;}
       <div id="roundsInfo"><p class="empty">Not set up yet.</p></div>
     </div>
     <div class="card">
-      <h2>Groups</h2>
+      <h2>Tee times</h2>
       <select id="homeRoundSelect"></select>
       <div id="groupsList"><p class="empty">No groups posted yet.</p></div>
     </div>
@@ -299,6 +303,17 @@ function contestHoles(on, text, holes){
   return [...new Set(picked)].filter(n => valid.has(n)).sort((a, b) => a - b);
 }
 
+// The competing entries for a round. Team formats use the teams the commissioner built;
+// individual formats have none — every roster player is his own entry, keyed "p-<id>".
+function unitsFor(roundId, round){
+  if (FORMATS[round.format]?.unit === "player"){
+    const out = {};
+    Object.keys(cfg.roster || {}).forEach(pid => { out["p-" + pid] = { playerIds: [pid] }; });
+    return out;
+  }
+  return cfg.groups?.[roundId] || {};
+}
+
 function roundContext(roundId){
   const round = cfg.rounds?.[roundId];
   const course = courseFor(roundId);
@@ -309,13 +324,14 @@ function roundContext(roundId){
     allowanceMode: cfg.event?.allowanceMode || "full"
   });
 
-  const groups = cfg.groups?.[roundId] || {};
+  const groups = unitsFor(roundId, round);
   const teamPhs = FORMATS[round.format]?.teamHcp
     ? teamHandicaps(round.format, groups, playerPhs, cfg.event?.teamHcpMode || "formula",
                     cfg.event?.teamWeights)
     : {};
 
-  return { round, course, groups, playerPhs, teamPhs, holeCount: (course.holes || []).length,
+  return { round, course, groups, units: groups, teeTimes: cfg.teeTimes?.[roundId] || {},
+           playerPhs, teamPhs, holeCount: (course.holes || []).length,
            maxRule: round.maxScore || DEFAULT_MAX_RULE, maxPlus: round.maxPlus,
            contests: {
              ctp: contestHoles(round.ctpOn, round.ctpHoles, course.holes),
@@ -323,13 +339,7 @@ function roundContext(roundId){
            } };
 }
 
-function myGroupIn(roundId){
-  const groups = cfg.groups?.[roundId] || {};
-  for (const [gid, g] of Object.entries(groups)){
-    if ((g.playerIds || []).includes(meId)) return [gid, g];
-  }
-  return [null, null];
-}
+
 
 /* ---------- round pickers ---------- */
 
@@ -375,43 +385,71 @@ function renderHome(){
 
 function renderGroupsList(){
   const roundId = document.getElementById("homeRoundSelect").value;
-  const groups = cfg.groups?.[roundId] || {};
-  const entries = Object.entries(groups);
-  document.getElementById("groupsList").innerHTML = entries.length ? entries.map(([gid, g]) => `
+  const el = document.getElementById("groupsList");
+  const base = roundContext(roundId);
+  if (!base){ el.innerHTML = `<p class="empty">No tee times posted yet.</p>`; return; }
+
+  const unitLine = u => (base.units[u]?.playerIds || []).map(pid => esc(cfg.roster?.[pid]?.name || "?")).join(" &amp; ");
+  const tees = Object.values(base.teeTimes)
+    .map(t => ({ start: t.start || "", unitIds: (t.unitIds || []).filter(u => base.units[u]) }))
+    .filter(t => t.unitIds.length)
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  el.innerHTML = tees.length ? tees.map(t => `
     <div class="pairing">
-      ${(g.playerIds || []).map(pid => esc(cfg.roster?.[pid]?.name || "?")).join(" / ")}
-      ${g.start ? `<div class="when">${esc(g.start)}</div>` : ""}
-    </div>`).join("") : `<p class="empty">No groups posted yet.</p>`;
+      <b>${t.start ? esc(t.start) : "Time to be confirmed"}</b>
+      ${t.unitIds.map(u => `<div class="when">${unitLine(u)}</div>`).join("")}
+    </div>`).join("") : `<p class="empty">No tee times posted yet.</p>`;
 }
 
 /* ---------- scorecard ---------- */
 
-// Which team this phone is scoring, per round. Defaults to the player's own team, but can
-// be switched so one phone can keep the card for a foursome made of two 2-man teams.
+// Which card this phone is keeping, per round: a tee time, or a single team (or player)
+// not yet put in a tee time. Defaults to whatever contains the logged-in player.
 const scoringFor = {};
 
-function scoringGroupFor(roundId, groups){
-  const chosen = scoringFor[roundId];
-  if (chosen && groups?.[chosen]) return chosen;
-  return myGroupIn(roundId)[0];
+// Every card a phone could keep for a round. A tee time carries everyone out on the course
+// together; anything not yet in a tee time can still be scored on its own.
+function cardOptions(base){
+  const tees = Object.entries(base.teeTimes || {})
+    .map(([id, t]) => ({ id: "t:" + id, start: t.start || "", unitIds: (t.unitIds || []).filter(u => base.units[u]) }))
+    .filter(t => t.unitIds.length)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const placed = new Set(tees.flatMap(t => t.unitIds));
+  const loose = Object.keys(base.units).filter(u => !placed.has(u))
+    .map(u => ({ id: "u:" + u, start: "", unitIds: [u] }));
+  return [...tees, ...loose];
+}
+
+const unitLabel = (base, u) => boardName(base.units[u]?.playerIds || []).big;
+
+function myUnit(base){
+  return Object.keys(base.units).find(u => (base.units[u].playerIds || []).includes(meId)) || null;
+}
+
+function chosenCard(roundId, base){
+  const options = cardOptions(base);
+  const picked = options.find(o => o.id === scoringFor[roundId]);
+  if (picked) return picked;
+  const mine = myUnit(base);
+  return options.find(o => o.unitIds.includes(mine)) || null;
 }
 
 function fillGroupSelect(roundId){
   const sel = document.getElementById("scoreGroupSelect");
-  const groups = cfg.groups?.[roundId] || {};
-  const entries = Object.entries(groups);
-  if (!entries.length){ sel.classList.add("hidden"); sel.innerHTML = ""; return; }
+  const base = roundContext(roundId);
+  const options = base ? cardOptions(base) : [];
+  if (!options.length){ sel.classList.add("hidden"); sel.innerHTML = ""; return; }
   sel.classList.remove("hidden");
 
-  const mine = myGroupIn(roundId)[0];
-  const current = scoringGroupFor(roundId, groups);
-  // Sorted by tee time, so teams going out together sit next to each other in the list.
-  entries.sort((a, b) => String(a[1].start || "").localeCompare(String(b[1].start || "")));
-  sel.innerHTML = (current ? "" : '<option value="">Pick the team you are scoring for</option>') +
-    entries.map(([gid, g]) => {
-      const label = boardName(g.playerIds || []).big +
-        (g.start ? " · " + g.start : "") + (gid === mine ? " (your team)" : "");
-      return '<option value="' + gid + '"' + (gid === current ? " selected" : "") + ">Scoring for " + esc(label) + "</option>";
+  const mine = myUnit(base);
+  const current = chosenCard(roundId, base);
+  sel.innerHTML = (current ? "" : '<option value="">Pick the card you are keeping</option>') +
+    options.map(o => {
+      const names = o.unitIds.map(u => unitLabel(base, u)).join(" / ");
+      const label = (o.start ? o.start + " · " : "") + names + (o.unitIds.includes(mine) ? " (you)" : "");
+      return '<option value="' + o.id + '"' + (current && o.id === current.id ? " selected" : "") + ">" +
+        "Scoring " + esc(label) + "</option>";
     }).join("");
 }
 
@@ -420,37 +458,46 @@ function renderScoreTab(){
   renderScorecard();
 }
 
-// Everything the scorecard needs about the round the player is looking at.
+// Everything the scorecard needs: the round, the teams on this card, and every box — one
+// per player, or one per team in scramble and alternate shot — each tagged with the team
+// whose score it is.
 function currentCard(){
   const roundId = document.getElementById("scoreRoundSelect").value;
   const base = roundContext(roundId);
   if (!base) return null;
-  const gid = scoringGroupFor(roundId, base.groups);
-  if (!gid) return { roundId, base, gid: null };
-  const group = base.groups[gid];
+  const card = chosenCard(roundId, base);
+  if (!card) return { roundId, fields: [] };
 
-  const { round, course, playerPhs, teamPhs, holeCount, maxRule, maxPlus } = base;
-  const memberIds = group.playerIds || [];
+  const { round, course, units, playerPhs, teamPhs, holeCount, maxRule, maxPlus, contests } = base;
   const teamEntry = FORMATS[round.format]?.entry === "team";
 
+  const teams = card.unitIds.map(u => ({
+    unitId: u,
+    label: unitLabel(base, u),
+    ctx: { memberIds: units[u].playerIds || [], playerPhs, teamPh: teamPhs[u] ?? 0, holeCount, maxRule, maxPlus }
+  }));
+
+  const fields = card.unitIds.flatMap(u => teamEntry
+    ? [{ unitId: u, key: "team", label: unitLabel(base, u), ph: teamPhs[u] ?? 0 }]
+    : (units[u].playerIds || []).map(pid => ({
+        unitId: u, key: pid, label: cfg.roster?.[pid]?.name || "?", ph: playerPhs[pid] ?? 0
+      })));
+
   return {
-    roundId, gid, group, round, course, holeCount, maxRule, maxPlus, contests: base.contests,
+    roundId, round, course, holeCount, maxRule, maxPlus, contests, teams, fields,
+    start: card.start,
     format: round.format,
-    holes: course.holes || [],
-    ctx: { memberIds, playerPhs, teamPh: teamPhs[gid] ?? 0, holeCount, maxRule, maxPlus },
-    // One column per player, or a single team column.
-    fields: teamEntry
-      ? [{ key: "team", label: "Team", ph: teamPhs[gid] ?? 0 }]
-      : memberIds.map(id => ({ key: id, label: cfg.roster?.[id]?.name || "?", ph: playerPhs[id] ?? 0 }))
+    holes: course.holes || []
   };
 }
 
-const cardScores = c => scores?.[c.roundId]?.[c.gid] || {};
+const cellFor = (c, f, hole) => scores?.[c.roundId]?.[f.unitId]?.[hole]?.[f.key];
+const unitScores = (c, unitId) => scores?.[c.roundId]?.[unitId] || {};
 
-const holeComplete = (c, hole) => {
-  const entry = cardScores(c)[hole] || {};
-  return c.fields.every(f => entry[f.key] && (entry[f.key].x || entry[f.key].v != null));
-};
+const holeComplete = (c, hole) => c.fields.every(f => {
+  const cell = cellFor(c, f, hole);
+  return cell && (cell.x || cell.v != null);
+});
 
 // Index of the first hole still missing a score or pickup, or -1 once the card is full.
 const firstOpenIndex = c => c.holes.findIndex(h => !holeComplete(c, h.number));
@@ -478,6 +525,18 @@ function markClass(gross, par){
   return "";
 }
 
+// Running totals, one line per team on the card.
+function totalsHtml(c){
+  return '<div class="card-totals">' + c.teams.map(t => {
+    const r = roundTotals(c.format, c.holes, unitScores(c, t.unitId), t.ctx);
+    return '<div class="stats">' +
+      (c.teams.length > 1 ? '<span class="tt-name">' + esc(t.label) + "</span>" : "") +
+      "<span>Thru <b>" + r.thru + "</b></span>" +
+      "<span>Total <b>" + (r.thru ? fmtToPar(r.toPar) : "&mdash;") + "</b></span>" +
+    "</div>";
+  }).join("") + "</div>";
+}
+
 let currentHole = null;
 
 function renderScorecard(){
@@ -486,7 +545,7 @@ function renderScorecard(){
   const c = currentCard();
 
   if (!c){ body.innerHTML = '<p class="empty">This round does not have a course set yet.</p>'; return; }
-  if (!c.gid){ body.innerHTML = '<p class="empty">Pick the team you are scoring for above.</p>'; return; }
+  if (!c.fields.length){ body.innerHTML = '<p class="empty">Pick the card you are keeping above.</p>'; return; }
   if (!c.holes.length){ body.innerHTML = '<p class="empty">This round\'s course has no holes set up.</p>'; return; }
 
   if (scoreView === "card"){ renderFullCard(body, c); return; }
@@ -501,9 +560,7 @@ function renderScorecard(){
 
 function renderHoleView(body, c){
   const hole = c.holes.find(h => h.number === currentHole);
-  const entry = cardScores(c)[hole.number] || {};
   const idx = c.holes.indexOf(hole);
-  const t = roundTotals(c.format, c.holes, cardScores(c), c.ctx);
 
   // Holes past the first one still missing a score are locked, so a group can't get three
   // holes down the fairway before anyone notices a blank. Going back is always allowed.
@@ -522,83 +579,91 @@ function renderHoleView(body, c){
       ">" + h.number + "</button>";
   }).join("");
 
-  const entries = c.fields.map(f => {
-    const cell = entry[f.key] || {};
+  // With two teams on one card, each team's boxes sit under its name.
+  const headed = c.teams.length > 1 && FORMATS[c.format]?.entry !== "team";
+  let lastUnit = null;
+  const entries = c.fields.map((f, i) => {
+    const cell = cellFor(c, f, hole.number) || {};
     const shots = strokesOnHole(f.ph, hole.si, c.holeCount);
     const cap = grossCap(c.maxRule, hole.par, shots, c.maxPlus);
     const picked = !!cell.x;
-    return '<div class="entry" data-field="' + esc(f.key) + '">' +
-      '<span class="who">' + esc(f.label) +
-        '<span class="shots">' +
-          (shots ? shots + " shot" + (shots > 1 ? "s" : "") + " here" : "no shot here") +
-          " &middot; plays off " + f.ph + (cap != null ? " &middot; max " + cap : "") +
-        '</span>' +
-      '</span>' +
-      '<span class="big-box">' +
-        '<input type="' + (picked ? "text" : "number") + '" inputmode="numeric" min="1" max="15"' +
-          ' class="' + (picked ? "picked" : "") + '"' + (picked ? " disabled" : "") +
-          ' value="' + (picked ? "X" : (cell.v ?? "")) + '" data-score>' +
-        (shots ? '<span class="dot ' + (shots > 1 ? "two" : "") + '"></span>' : "") +
-      '</span>' +
-      '<span class="acts">' +
-        (cap == null && !picked ? "" : '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>') +
-        '<button data-clear>Clear</button>' +
-      '</span>' +
-    '</div>';
+    const header = headed && f.unitId !== lastUnit
+      ? '<div class="team-head">' + esc(c.teams.find(t => t.unitId === f.unitId).label) + "</div>" : "";
+    lastUnit = f.unitId;
+    return header +
+      '<div class="entry" data-i="' + i + '">' +
+        '<span class="who">' + esc(f.label) +
+          '<span class="shots">' +
+            (shots ? shots + " shot" + (shots > 1 ? "s" : "") + " here" : "no shot here") +
+            " &middot; plays off " + f.ph + (cap != null ? " &middot; max " + cap : "") +
+          "</span>" +
+        "</span>" +
+        '<span class="big-box">' +
+          '<input type="' + (picked ? "text" : "number") + '" inputmode="numeric" min="1" max="15"' +
+            ' class="' + (picked ? "picked" : "") + '"' + (picked ? " disabled" : "") +
+            ' value="' + (picked ? "X" : (cell.v ?? "")) + '" data-score>' +
+          (shots ? '<span class="dot ' + (shots > 1 ? "two" : "") + '"></span>' : "") +
+        "</span>" +
+        '<span class="acts">' +
+          (cap == null && !picked ? "" : '<button data-pickup class="' + (picked ? "on" : "") + '">Picked up</button>') +
+          "<button data-clear>Clear</button>" +
+        "</span>" +
+      "</div>";
   }).join("");
 
+  const complete = holeComplete(c, hole.number);
   body.innerHTML =
-    '<p style="margin-bottom:10px;">' + esc(FORMATS[c.format]?.label || c.format) + ' &middot; ' +
-      esc(c.course.name || "") + (c.group.start ? " &middot; " + esc(c.group.start) : "") + '</p>' +
-    '<div class="strip">' + strip + '</div>' +
-    '<div class="hole-head"><span class="num">' + hole.number + '</span>' +
-      '<span class="meta">Par ' + hole.par + ' &middot; stroke index ' + hole.si + '</span></div>' +
+    '<p style="margin-bottom:10px;">' + esc(FORMATS[c.format]?.label || c.format) + " &middot; " +
+      esc(c.course.name || "") + (c.start ? " &middot; " + esc(c.start) : "") + "</p>" +
+    '<div class="strip">' + strip + "</div>" +
+    '<div class="hole-head"><span class="num">' + hole.number + "</span>" +
+      '<span class="meta">Par ' + hole.par + " &middot; stroke index " + hole.si + "</span></div>" +
     contestBadges(c, hole.number) +
     entries +
-    '<div class="stats" style="margin-top:14px;">' +
-      '<span>Thru <b>' + t.thru + '</b></span>' +
-      '<span>Total <b>' + (t.thru ? fmtToPar(t.toPar) : "&mdash;") + '</b></span>' +
-    '</div>' +
-    '<p class="gate-hint' + (holeComplete(c, hole.number) ? " hidden" : "") + '">Every player needs a score' +
-      (c.maxRule === "none" ? "" : " or Picked up") + ' before moving on.</p>' +
+    totalsHtml(c) +
+    '<p class="gate-hint' + (complete ? " hidden" : "") + '">Every player needs a score' +
+      (c.maxRule === "none" ? "" : " or Picked up") + " before moving on.</p>" +
     '<div class="nav-holes">' +
-      '<button data-prev' + (idx === 0 ? " disabled" : "") + '>&larr; ' + (idx === 0 ? "Start" : "Hole " + c.holes[idx - 1].number) + '</button>' +
-      '<button data-next class="primary"' + (idx === c.holes.length - 1 || !holeComplete(c, hole.number) ? " disabled" : "") + '>' + (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + ' &rarr;</button>' +
-    '</div>' +
+      "<button data-prev" + (idx === 0 ? " disabled" : "") + ">&larr; " +
+        (idx === 0 ? "Start" : "Hole " + c.holes[idx - 1].number) + "</button>" +
+      '<button data-next class="primary"' + (idx === c.holes.length - 1 || !complete ? " disabled" : "") + ">" +
+        (idx === c.holes.length - 1 ? "Last hole" : "Hole " + c.holes[idx + 1].number) + " &rarr;</button>" +
+    "</div>" +
     (c.holes[idx + 1] && contestLabel(c, c.holes[idx + 1].number)
-      ? '<p class="next-contest">Next hole: ' + contestLabel(c, c.holes[idx + 1].number) + '</p>' : "") +
+      ? '<p class="next-contest">Next hole: ' + contestLabel(c, c.holes[idx + 1].number) + "</p>" : "") +
     '<button class="link" id="switchPlayerBtn" style="margin-top:12px;">Not you? Switch player</button>';
 
   const inputs = [...body.querySelectorAll("input[data-score]")];
 
-  body.querySelectorAll(".entry").forEach((row, i) => {
-    const field = row.dataset.field;
+  body.querySelectorAll(".entry").forEach(row => {
+    const f = c.fields[+row.dataset.i];
     const input = row.querySelector("input[data-score]");
+    const pos = inputs.indexOf(input);
 
     input?.addEventListener("input", () => {
       if (input.value === ""){
-        queueScoreWrite(c.roundId, c.gid, hole.number, field, { v: null, x: false });
+        queueScoreWrite(c.roundId, f.unitId, hole.number, f.key, { v: null, x: false });
         refreshRunningTotal(c);
         return;
       }
       const n = Math.max(1, Math.min(15, Math.floor(+input.value) || 1));
       // Cap rather than storing a number nobody actually made.
       if (+input.value > 15) input.value = String(n);
-      queueScoreWrite(c.roundId, c.gid, hole.number, field, { v: n, x: false });
+      queueScoreWrite(c.roundId, f.unitId, hole.number, f.key, { v: n, x: false });
       refreshRunningTotal(c);
 
       // Move to the next box once the number cannot get any more specific — a lone 1
       // could still become 10 through 15, anything else could not.
       const raw = input.value;
-      if (raw.length >= 2 || (raw.length === 1 && raw !== "1")) inputs[i + 1]?.focus();
+      if (raw.length >= 2 || (raw.length === 1 && raw !== "1")) inputs[pos + 1]?.focus();
     });
 
     row.querySelector("[data-pickup]")?.addEventListener("click", () => {
-      const now = !!(cardScores(c)[hole.number]?.[field]?.x);
-      queueScoreWrite(c.roundId, c.gid, hole.number, field, now ? { v: null, x: false } : { v: null, x: true }, true);
+      const now = !!cellFor(c, f, hole.number)?.x;
+      queueScoreWrite(c.roundId, f.unitId, hole.number, f.key, now ? { v: null, x: false } : { v: null, x: true }, true);
     });
     row.querySelector("[data-clear]").addEventListener("click", () => {
-      queueScoreWrite(c.roundId, c.gid, hole.number, field, { v: null, x: false }, true);
+      queueScoreWrite(c.roundId, f.unitId, hole.number, f.key, { v: null, x: false }, true);
     });
   });
 
@@ -621,15 +686,12 @@ function renderHoleView(body, c){
   };
 }
 
-// Updates the running total and the strip without re-rendering the hole, which would
-// throw focus out of the box being typed in.
+// Updates totals, the strip and the gate without re-rendering the hole, which would throw
+// focus out of the box being typed in.
 function refreshRunningTotal(c){
-  const t = roundTotals(c.format, c.holes, cardScores(c), c.ctx);
-  const stats = document.querySelectorAll("#scorecardBody .stats b");
-  if (stats.length >= 2){
-    stats[0].textContent = t.thru;
-    stats[1].innerHTML = t.thru ? fmtToPar(t.toPar) : "&mdash;";
-  }
+  const totals = document.querySelector("#scorecardBody .card-totals");
+  if (totals) totals.outerHTML = totalsHtml(c);
+
   const openIdx = firstOpenIndex(c);
   document.querySelectorAll("#scorecardBody [data-goto]").forEach((btn, i) => {
     btn.classList.toggle("done", holeComplete(c, +btn.dataset.goto));
@@ -645,15 +707,14 @@ function refreshRunningTotal(c){
 }
 
 function renderFullCard(body, c){
-  const groupScores = cardScores(c);
   const front = c.holes.filter(h => h.number <= 9);
   const back = c.holes.filter(h => h.number > 9);
-
   const sumPar = hs => hs.reduce((s, h) => s + (+h.par || 0), 0);
+
   // The score that COUNTS in each cell, after the round's maximum — the same number the
   // leaderboard uses, so the card and the leaderboard can never disagree.
   const countedFor = (f, h) => scoreCell(
-    groupScores[h.number]?.[f.key], h.par,
+    cellFor(c, f, h.number), h.par,
     strokesOnHole(f.ph, h.si, c.holeCount), c.maxRule, c.maxPlus
   );
   const sumGross = (f, hs) => {
@@ -664,7 +725,6 @@ function renderFullCard(body, c){
     });
     return any ? total : "";
   };
-
   const playerCells = (f, hs) => hs.map(h => {
     const res = countedFor(f, h);
     if (!res) return "<td></td>";
@@ -672,6 +732,20 @@ function renderFullCard(body, c){
     const cls = markClass(res.gross, h.par);
     return "<td>" + (cls ? '<span class="mark ' + cls + '">' + res.gross + "</span>" : res.gross) + "</td>";
   }).join("");
+
+  const headed = c.teams.length > 1 && FORMATS[c.format]?.entry !== "team";
+  const fieldRows = hs => {
+    let lastUnit = null;
+    return c.fields.map(f => {
+      const head = headed && f.unitId !== lastUnit
+        ? '<tr class="unit"><td class="name" colspan="' + (hs.length + 2) + '">' +
+            esc(c.teams.find(t => t.unitId === f.unitId).label) + "</td></tr>"
+        : "";
+      lastUnit = f.unitId;
+      return head + '<tr><td class="name">' + esc(f.label) + "</td>" + playerCells(f, hs) +
+        '<td class="tot">' + sumGross(f, hs) + "</td></tr>";
+    }).join("");
+  };
 
   const section = (hs, label) => !hs.length ? "" :
     '<tr class="meta"><th class="name">Hole</th>' + hs.map(h => "<th>" + h.number + "</th>").join("") + "<th>" + label + "</th></tr>" +
@@ -683,26 +757,21 @@ function renderFullCard(body, c){
           (c.contests.ld.includes(h.number) ? '<span class="contest ld mini">LD</span>' : "") + "</td>").join("") +
         "<td></td></tr>"
       : "") +
-    c.fields.map(f =>
-      '<tr><td class="name">' + esc(f.label) + "</td>" + playerCells(f, hs) +
-      '<td class="tot">' + sumGross(f, hs) + "</td></tr>").join("");
-
-  const t = roundTotals(c.format, c.holes, groupScores, c.ctx);
+    fieldRows(hs);
 
   body.innerHTML =
-    '<p style="margin-bottom:10px;">' + esc(FORMATS[c.format]?.label || c.format) + " &middot; " + esc(c.course.name || "") + "</p>" +
+    '<p style="margin-bottom:10px;">' + esc(FORMATS[c.format]?.label || c.format) + " &middot; " +
+      esc(c.course.name || "") + (c.start ? " &middot; " + esc(c.start) : "") + "</p>" +
     '<div class="card-scroll"><table class="scard">' +
       section(front, "Out") +
       (back.length ? '<tr><td colspan="' + (back.length + 2) + '" style="border:none;height:10px;"></td></tr>' : "") +
       section(back, "In") +
     "</table></div>" +
-    '<div class="stats" style="margin-top:14px;">' +
-      "<span>Thru <b>" + t.thru + "</b></span>" +
-      "<span>Team total <b>" + (t.thru ? fmtToPar(t.toPar) : "&mdash;") + "</b></span>" +
-    "</div>" +
+    totalsHtml(c) +
     '<p style="font-size:12px;color:var(--dim);margin-top:10px;">' +
       "Circle = birdie &middot; double circle = eagle &middot; box = bogey &middot; double box = double or worse. " +
-      "Numbers are the gross that counts, after the round's maximum; X is a picked-up ball, scored at the maximum. The team total is net." +
+      "Numbers are the gross that counts, after the round's maximum; X is a picked-up ball, scored at the maximum. " +
+      "Totals are net." +
     "</p>";
 }
 
