@@ -67,16 +67,14 @@ export function courseHandicap(index, tee, par){
  *   "full"       — each player plays off his own allowance-adjusted course handicap
  *   "off-lowest" — the same, then everyone drops by the lowest in the field, so the
  *                  best player plays off scratch and everyone else off the difference
- *
- * A player can carry his own allowancePct, which overrides the event-wide one.
  */
 export function playingHandicaps(roster, course, { allowancePct = 100, allowanceMode = "full" } = {}){
   const par = coursePar(course.holes);
   const teeByName = new Map((course.tees || []).map(t => [t.name, t]));
+  const pct = allowancePct / 100;
 
   const out = {};
   Object.entries(roster || {}).forEach(([id, p]) => {
-    const pct = (p.allowancePct ?? allowancePct) / 100;
     out[id] = Math.round(courseHandicap(p.index, teeByName.get(p.tee), par) * pct);
   });
 

@@ -40,12 +40,6 @@ const offLow = S.playingHandicaps(roster, course, { allowancePct: 100, allowance
 eq("off-lowest: best plays scratch", offLow.a, 0);
 eq("off-lowest preserves gaps", offLow.b - offLow.a, full100.b - full100.a);
 
-console.log("\nper-player allowance override");
-const rosterOverride = { ...roster, b: { ...roster.b, allowancePct: 50 } };
-const ov = S.playingHandicaps(rosterOverride, course, { allowancePct: 100, allowanceMode: "full" });
-eq("b halved by override", ov.b, Math.round((15.0 * 125/113 + (71.2-72)) * 0.5));
-eq("a untouched by b's override", ov.a, full100.a);
-
 console.log("\nteam handicap formulas");
 eq("scramble 2 (35/15) of [10,20]", S.teamHandicapFormula("scramble", [10, 20]), Math.round(0.35*10 + 0.15*20));
 eq("scramble 4 (25/20/15/10)", S.teamHandicapFormula("scramble", [4, 8, 12, 20]), Math.round(0.25*4 + 0.20*8 + 0.15*12 + 0.10*20));

@@ -69,6 +69,34 @@ No bundler, no framework:
   `file://`.
 - **`tests/`** — the scoring test suite. See Testing below.
 
+## Admin console design
+
+admin.html shares the player app's clubhouse look — cream stock (`--bg`/`--surface`/etc.
+redefined to the same palette the leaderboard uses), Pirata One for the page title, Georgia
+small-caps for section headings, Kalam reserved for status text and the PIN screen's
+subtitle, same as the leaderboard keeps it off the dense functional copy. It's the same CSS
+custom-property structure as before (`--bg`, `--surface`, `--accent`, etc.) with new values,
+so this re-themed the whole console by editing `:root` plus a handful of colors that were
+hardcoded instead of using a variable (button text on `--accent`, the zebra-stripe tint, the
+Firebase-not-connected banner) — worth remembering if either page's palette moves again:
+check for hardcoded colors before assuming the CSS variables alone will catch everything.
+
+**Needs-review highlighting.** Every genuine either/or default in Event and each round —
+handicap allowance and its basis, team handicap mode, net/gross, stroke/match, the format
+card grid, maximum score, and (when skins is on) its own net/gross and team/individual — gets
+a bright white fill with a navy ring (`.needs-review`) until it's been interacted with *this
+session*. Clicking, even to re-pick the same value, confirms just that one field. This is
+`pendingReview`, a plain `Set` in admin.html — **never written to Firebase, and reseeded from
+scratch on every load** (`seedPendingReview()`, called right after `loadAll()` populates
+`state`). That's deliberate: it says "you haven't looked at this yet this visit," not "this
+was never configured," so a returning commissioner re-confirming settings he already chose
+correctly isn't a bug, it's the point — same as re-initialing each section of a paper form
+rather than trusting a signature from last time. A freshly added round gets seeded the same
+way (`seedRoundReview()`, called from the "+ Add round" handler). Free-text fields (names,
+CTP/LD hole numbers) and the opt-in checkboxes themselves (Skins/CTP/LD on or off) are
+deliberately left out — an unchecked optional extra is a legitimate resting state, not a
+default waiting to be confirmed.
+
 ## Formats
 
 Twelve, defined in one place — the `FORMATS` table at the top of `scoring.js`. Six games
@@ -142,8 +170,9 @@ stats add holes won, halved and lost, credited to every player on the side.
 
 - Course handicap is always **calculated**, never typed: `index x (slope/113) + (rating - par)`.
   The commissioner enters the course's tees (rating/slope) and each player's index.
-- The event-wide **allowance %** applies to every player. A player can carry his own
-  `allowancePct`, which overrides it.
+- The event-wide **allowance %** applies to every player — one number for the whole event,
+  no per-player override. (There was one — a roster-row `allowancePct` — removed because it
+  went unused and was confusing more than it helped.)
 - **Allowance basis** is a choice: `full` (each player off his own handicap) or `off-lowest`.
   **Off lowest depends on the round's play:** stroke play plays off the low man in the whole
   field; match play plays off the low man in each match, so a player's shots depend on who he's
@@ -177,9 +206,10 @@ on every course. A player who plays different tees on different courses isn't su
   /event    { name, allowancePct, allowanceMode, teamHcpMode, teamWeights? }
   /courses  { <courseId>: { name, location, holesCount,
                             holes: [{number, par, si}], tees: [{name, rating, slope, yards}] } }
-  /roster   { <playerId>: { name, index, tee, email, code, allowancePct? } }
+  /roster   { <playerId>: { name, index, tee, email, code, commissioner? } }
   /rounds   { <roundId>: { name, courseId, format, play, order, maxScore, maxPlus?,
-                           ctpOn, ctpHoles, ldOn, ldHoles } }
+                           ctpOn, ctpHoles, ldOn, ldHoles,
+                           skinsOn?, skinsGross?, skinsUnit? } }
   /groups   { <roundId>: { <teamId>: { name, playerIds: [...] } } }    teams (team formats)
   /teeTimes { <roundId>: { <teeTimeId>: { start, unitIds: [...] } } }  who goes out together
   /matches  { <roundId>: { <matchId>: { unitIds: [a, b] } } }          match play only
