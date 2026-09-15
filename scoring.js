@@ -344,19 +344,23 @@ export function matchHoleResult(format, hole, entries, ctxs){
 
 /**
  * A round's skins game, straight through in hole order: outright low score on a hole wins
- * it, a tie carries the skin (and every skin still riding on it) to the next hole. A hole
- * only resolves once every unit in the round has a result on it — one unit still out means
- * nobody can be declared low yet — so this stops at the first hole that isn't fully in and
- * leaves the rest unresolved rather than guessing.
+ * it. A hole only resolves once every unit in the round has a result on it — one unit still
+ * out means nobody can be declared low yet — so this stops at the first hole that isn't
+ * fully in and leaves the rest unresolved rather than guessing.
+ *
+ * carryOver (default true) decides what a tie does:
+ *   true  — the skin (and everything already riding on it) carries to the next hole
+ *   false — a tied hole is just void. Nobody gets it, ever, and it does not add to the next
+ *           hole's stakes — every hole is worth exactly one skin, win it outright or lose it.
  *
  * unitScores: { unitId: { holeNumber: entry } }, one entry per unit for every unit playing.
  * ctxs:       { unitId: ctx } — same per-unit ctx shape computeHoleResult takes.
  *
  * Returns { perHole: [{hole, winnerUnitId, skins}], totals: {unitId: skinsWon}, carry }.
- * `winnerUnitId` is null on a halved hole (its skins carried on). `carry` is however many
- * skins are still unclaimed, riding into the first unresolved hole.
+ * `winnerUnitId` is null on a halved hole. `carry` is however many skins are still
+ * unclaimed, riding into the first unresolved hole — always 0 when carryOver is false.
  */
-export function skinsForRound(format, holes, unitScores, ctxs){
+export function skinsForRound(format, holes, unitScores, ctxs, { carryOver = true } = {}){
   const unitIds = Object.keys(unitScores || {});
   const totals = {};
   unitIds.forEach(u => { totals[u] = 0; });
@@ -375,13 +379,14 @@ export function skinsForRound(format, holes, unitScores, ctxs){
     }
     if (!allIn) break;
 
-    carry += 1;
+    if (carryOver) carry += 1;
     const low = Math.min(...Object.values(results));
     const winners = unitIds.filter(u => results[u] === low);
 
     if (winners.length === 1){
-      totals[winners[0]] += carry;
-      perHole.push({ hole: h.number, winnerUnitId: winners[0], skins: carry });
+      const skins = carryOver ? carry : 1;
+      totals[winners[0]] += skins;
+      perHole.push({ hole: h.number, winnerUnitId: winners[0], skins });
       carry = 0;
     } else {
       perHole.push({ hole: h.number, winnerUnitId: null, skins: carry });

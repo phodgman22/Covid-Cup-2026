@@ -1241,6 +1241,7 @@ function skinsSectionHtml(base, roundId){
   // neither field set.
   const skinsUnit = canIndividual ? (base.round.skinsUnit || "individual") : "team";
   const skinsGross = base.round.skinsGross ?? true;
+  const skinsCarry = base.round.skinsCarry ?? true;
   const skinsFormat = skinsUnit === "individual" ? formatFor("individual", skinsGross) : formatFor(f?.family, skinsGross);
 
   let unitIds, unitScores = {}, ctxs = {}, labelOf, openUnitOf = u => u;
@@ -1273,7 +1274,7 @@ function skinsSectionHtml(base, roundId){
   }
   if (!unitIds.length) return "";
 
-  const { perHole, totals, carry } = skinsForRound(skinsFormat, holes, unitScores, ctxs);
+  const { perHole, totals, carry } = skinsForRound(skinsFormat, holes, unitScores, ctxs, { carryOver: skinsCarry });
   if (!perHole.length) return "";
 
   const standing = unitIds.map(u => ({ u, skins: totals[u] || 0 }))
@@ -1298,6 +1299,7 @@ function skinsSectionHtml(base, roundId){
 
   return '<div class="board-sub" style="margin-top:14px;">Skins' +
       (skinsGross ? " &middot; gross" : " &middot; net") + (skinsUnit === "individual" ? " &middot; individual" : "") +
+      (skinsCarry ? "" : " &middot; void on tie") +
     "</div>" + rows + pending;
 }
 

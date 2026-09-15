@@ -132,12 +132,22 @@ table.grid .empty-row{color:var(--dim);text-align:center;padding:10px;}
 header .sub,.status,#loadStatus{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;}
 #pinGate p{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;color:var(--muted);}
 
-/* A default value nobody's confirmed yet this session — bright white against the cream
-   page, settling to the normal parchment tone the instant it's touched. */
-.needs-review{background:#ffffff !important;box-shadow:0 0 0 2px var(--navy);}
-.seg-admin.needs-review{box-shadow:0 0 0 2px var(--navy);border-radius:6px;}
-.seg-admin.needs-review button:not(.active){background:#ffffff;}
-.fmt-grid.needs-review{box-shadow:0 0 0 2px var(--navy);border-radius:10px;padding:8px;margin:-8px -8px 10px;}
+/* A default value nobody's actually chosen yet this session — a loud amber alert ring that
+   pulses, settling to the normal parchment tone only once a different value is picked
+   (merely clicking the already-active option does NOT clear it). */
+@keyframes reviewPulse{
+  0%,100%{box-shadow:0 0 0 3px #e0a318,0 0 0 3px #e0a318 inset,0 0 10px 1px rgba(224,163,24,.7);}
+  50%{box-shadow:0 0 0 3px #e0a318,0 0 0 3px #e0a318 inset,0 0 16px 4px rgba(224,163,24,.95);}
+}
+.needs-review{background:#fff6e0 !important;box-shadow:0 0 0 3px #e0a318;animation:reviewPulse 1.6s ease-in-out infinite;position:relative;}
+.needs-review::after{content:"NEEDS REVIEW";position:absolute;top:-9px;left:10px;background:#e0a318;color:#231a05;
+  font-size:9px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border-radius:4px;line-height:1.5;
+  font-family:Georgia,"Times New Roman",serif;pointer-events:none;}
+.seg-admin.needs-review{border-radius:6px;}
+.seg-admin.needs-review::after{display:none;}
+.seg-admin.needs-review button:not(.active){background:#fff6e0;}
+.fmt-grid.needs-review{border-radius:10px;padding:8px;margin:-8px -8px 10px;}
+select.needs-review,input.needs-review{border-radius:6px;}
 </style>
 </head>
 <body>
@@ -269,7 +279,7 @@ header .sub,.status,#loadStatus{font-family:"Kalam","Segoe Print","Bradley Hand"
 <div class="savebar">
   <span class="status" id="saveStatus"></span>
   <button class="primary" id="saveBtn">Save all</button>
-  <button id="reloadBtn">Reload from server</button>
+  <button id="reloadBtn">Update to player app</button>
 </div>
 </div>
 
@@ -674,6 +684,7 @@ function renderRounds(){
         // a deliberate choice, not just "whatever the round already is".
         const skinsGross = r.skinsGross ?? true;
         const skinsUnit = canIndividual ? (r.skinsUnit || "individual") : "team";
+        const skinsCarry = r.skinsCarry ?? true;
         return `<div class="row" style="align-items:flex-end;margin-top:-4px;">
           <div class="seg-admin ${isPending("skinsGross", id) ? "needs-review" : ""}">
             <button type="button" data-set-skins-gross="0" class="${skinsGross ? "" : "active"}">Net</button>
@@ -683,11 +694,16 @@ function renderRounds(){
             <button type="button" data-set-skins-unit="team" class="${skinsUnit === "team" ? "active" : ""}">Team</button>
             <button type="button" data-set-skins-unit="individual" class="${skinsUnit === "individual" ? "active" : ""}">Individual</button>
           </div>` : ""}
+          <div class="seg-admin ${isPending("skinsCarry", id) ? "needs-review" : ""}">
+            <button type="button" data-set-skins-carry="1" class="${skinsCarry ? "active" : ""}">Carries over</button>
+            <button type="button" data-set-skins-carry="0" class="${skinsCarry ? "" : "active"}">Void on tie</button>
+          </div>
         </div>
-        <p class="hint" style="margin-top:6px;">Low score on a hole wins the skin; a tie carries it
-          (and everything riding on it) to the next hole. A hole only counts once every ${
-            skinsUnit === "individual" ? "player" : "team"} in the round has a score on it,
-          so skins can lag behind the leaderboard until the whole field is through a hole.</p>`;
+        <p class="hint" style="margin-top:6px;">Low score on a hole wins the skin${skinsCarry
+          ? "; a tie carries it (and everything riding on it) to the next hole"
+          : "; a tie just voids the hole — nobody wins it and nothing carries forward"}. A hole only
+          counts once every ${skinsUnit === "individual" ? "player" : "team"} in the round has a
+          score on it, so skins can lag behind the leaderboard until the whole field is through a hole.</p>`;
       })() : ""}
 
       <div class="round-setup" data-setup="${id}"></div>
@@ -709,9 +725,10 @@ function renderRounds(){
     }));
 
     const current = FORMATS[r.format] || FORMATS[DEFAULT_FORMAT];
+    const currentFormatKey = r.format || DEFAULT_FORMAT;
     const setFormat = next => {
+      if (next !== currentFormatKey) confirmField("format", id);
       r.format = next;
-      confirmField("format", id);
       renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
     };
     box.querySelectorAll("[data-set-gross]").forEach(btn => btn.addEventListener("click", () =>
@@ -719,18 +736,27 @@ function renderRounds(){
     box.querySelectorAll("[data-set-family]").forEach(btn => btn.addEventListener("click", () =>
       setFormat(formatFor(btn.dataset.setFamily, current.gross))));
     box.querySelectorAll("[data-set-play]").forEach(btn => btn.addEventListener("click", () => {
-      r.play = btn.dataset.setPlay;
-      confirmField("play", id);
+      const next = btn.dataset.setPlay;
+      if (next !== (r.play || "stroke")) confirmField("play", id);
+      r.play = next;
       renderRounds(); renderRoster();
     }));
     box.querySelectorAll("[data-set-skins-gross]").forEach(btn => btn.addEventListener("click", () => {
-      r.skinsGross = btn.dataset.setSkinsGross === "1";
-      confirmField("skinsGross", id);
+      const next = btn.dataset.setSkinsGross === "1";
+      if (next !== (r.skinsGross ?? true)) confirmField("skinsGross", id);
+      r.skinsGross = next;
+      renderRounds();
+    }));
+    box.querySelectorAll("[data-set-skins-carry]").forEach(btn => btn.addEventListener("click", () => {
+      const next = btn.dataset.setSkinsCarry === "1";
+      if (next !== (r.skinsCarry ?? true)) confirmField("skinsCarry", id);
+      r.skinsCarry = next;
       renderRounds();
     }));
     box.querySelectorAll("[data-set-skins-unit]").forEach(btn => btn.addEventListener("click", () => {
-      r.skinsUnit = btn.dataset.setSkinsUnit;
-      confirmField("skinsUnit", id);
+      const next = btn.dataset.setSkinsUnit;
+      if (next !== (r.skinsUnit || "individual")) confirmField("skinsUnit", id);
+      r.skinsUnit = next;
       renderRounds();
     }));
 
@@ -1137,7 +1163,7 @@ const reviewKey = (kind, roundId) => roundId ? `${kind}:${roundId}` : kind;
 const isPending = (kind, roundId) => pendingReview.has(reviewKey(kind, roundId));
 function confirmField(kind, roundId){ pendingReview.delete(reviewKey(kind, roundId)); }
 function seedRoundReview(roundId){
-  ["format", "play", "maxScore", "skinsGross", "skinsUnit"].forEach(k => pendingReview.add(reviewKey(k, roundId)));
+  ["format", "play", "maxScore", "skinsGross", "skinsUnit", "skinsCarry"].forEach(k => pendingReview.add(reviewKey(k, roundId)));
 }
 function seedPendingReview(){
   pendingReview.clear();
@@ -1571,7 +1597,9 @@ async function loadAll(){
 }
 
 document.getElementById("saveBtn").addEventListener("click", saveAll);
-document.getElementById("reloadBtn").addEventListener("click", () => location.reload());
+document.getElementById("reloadBtn").addEventListener("click", () => {
+  if (confirm("Reload this console from the server? Any unsaved changes here will be lost.")) location.reload();
+});
 
 /* ---------- PIN gate ---------- */
 

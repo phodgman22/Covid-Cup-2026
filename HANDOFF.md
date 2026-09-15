@@ -88,24 +88,33 @@ card and its pop-up (`#tab-score .card`, `.modal-box`) used to fully swap to a d
 app is that color, so they just set `--surface:#ffffff` for a crisp "fill this in" surface a
 shade whiter than the page, keeping everything else (accent, borders) inherited and
 consistent. The commissioner-mode bar (`.adminbar`) was a hardcoded dark amber "warning"
-look; recolored to `--navy` — reads as "different mode," not "something's wrong," and matches
-the same navy used for the page title and admin.html's needs-review ring.
+look; recolored to `--navy` — reads as "different mode," not "something's wrong."
 
 **Needs-review highlighting.** Every genuine either/or default in Event and each round —
 handicap allowance and its basis, team handicap mode, net/gross, stroke/match, the format
-card grid, maximum score, and (when skins is on) its own net/gross and team/individual — gets
-a bright white fill with a navy ring (`.needs-review`) until it's been interacted with *this
-session*. Clicking, even to re-pick the same value, confirms just that one field. This is
-`pendingReview`, a plain `Set` in admin.html — **never written to Firebase, and reseeded from
-scratch on every load** (`seedPendingReview()`, called right after `loadAll()` populates
-`state`). That's deliberate: it says "you haven't looked at this yet this visit," not "this
-was never configured," so a returning commissioner re-confirming settings he already chose
-correctly isn't a bug, it's the point — same as re-initialing each section of a paper form
-rather than trusting a signature from last time. A freshly added round gets seeded the same
-way (`seedRoundReview()`, called from the "+ Add round" handler). Free-text fields (names,
-CTP/LD hole numbers) and the opt-in checkboxes themselves (Skins/CTP/LD on or off) are
-deliberately left out — an unchecked optional extra is a legitimate resting state, not a
-default waiting to be confirmed.
+card grid, maximum score, and (when skins is on) its own net/gross, team/individual, and
+carry-over — gets a loud amber alert treatment (`.needs-review`): cream-gold fill, a pulsing
+amber ring, and a small "NEEDS REVIEW" tag (the tag is skipped on `.seg-admin` toggles, which
+clip it via their own `overflow:hidden`; the pulsing ring alone carries those) — until it's
+been genuinely **chosen** *this session*, meaning the value actually changed to something
+different from what it was. **Clicking a toggle button that's already the active/default
+value does NOT confirm it** — only picking a different option does; re-clicking the same
+option leaves the alert up. Each toggle's click handler compares the clicked value against
+the field's current value (falling back to the same default the button labels themselves use
+to decide "active") before calling `confirmField()`, so the comparison always matches what's
+visually shown as selected. This is `pendingReview`, a plain `Set` in admin.html — **never
+written to Firebase, and reseeded from scratch on every load** (`seedPendingReview()`, called
+right after `loadAll()` populates `state`). That's deliberate: it says "you haven't confirmed
+this yet this visit," not "this was never configured," so a returning commissioner
+re-confirming settings he already chose correctly isn't a bug, it's the point — same as
+re-initialing each section of a paper form rather than trusting a signature from last time. A
+freshly added round gets seeded the same way (`seedRoundReview()`, called from the
+"+ Add round" handler). Free-text fields (names, CTP/LD hole numbers) and the opt-in
+checkboxes themselves (Skins/CTP/LD on or off) are deliberately left out — an unchecked
+optional extra is a legitimate resting state, not a default waiting to be confirmed. Plain
+`<input>`/`<select>` fields (allowance %, allowance mode, team handicap mode, max score) don't
+need the same "already active" check — a real `input`/`change` event only fires when the
+value actually differs, so those were already correct.
 
 ## Formats
 
@@ -357,6 +366,15 @@ back to his real team unit to find his stored score cell (storage is always keye
 round's real unit, whether or not skins is scoring it that way) and to decide what a tap on
 his leaderboard row should open — there's no separate "skins unit" stored anywhere, it's
 derived fresh every render.
+
+**Ties can either carry or void** (`round.skinsCarry`, third toggle next to gross/net and
+team/individual) — **defaults to carry**, matching how skins is normally played. With carry
+on, a halved hole rolls its skin forward and stacks with whatever's already riding, same as
+described above. With carry off, a halved hole is simply void: nobody wins it, it never
+stacks onto the next hole, and every hole not tied is worth exactly one skin. `skinsForRound()`
+takes this as an options arg (`{ carryOver }`, default `true`) — index.html passes
+`round.skinsCarry ?? true` through on every call, same default-fallback pattern as gross/unit
+above.
 
 ## Statistics
 

@@ -41,5 +41,17 @@ eq("hole 2 halved too — carry keeps building", r2.perHole[1], { hole: 2, winne
 eq("hole 3: a takes both carried skins plus its own", r2.perHole[2], { hole: 3, winnerUnitId: "a", skins: 3 });
 eq("totals", r2.totals, { a: 3, b: 0 });
 
+console.log("\nskinsForRound — no carryover: ties are just void, not accumulated");
+const scores3 = {
+  a: { 1: box("a", 4), 2: box("a", 5), 3: box("a", 4) },
+  b: { 1: box("b", 4), 2: box("b", 5), 3: box("b", 5) }
+};
+const r3 = S.skinsForRound(format, holes, scores3, { a: ctxs.a, b: ctxs.b }, { carryOver: false });
+eq("hole 1 halved — void, worth nothing", r3.perHole[0], { hole: 1, winnerUnitId: null, skins: 0 });
+eq("hole 2 halved too — still just void, not stacking", r3.perHole[1], { hole: 2, winnerUnitId: null, skins: 0 });
+eq("hole 3: a wins it outright, worth exactly one skin", r3.perHole[2], { hole: 3, winnerUnitId: "a", skins: 1 });
+eq("totals — the two halved holes never paid out to anyone", r3.totals, { a: 1, b: 0 });
+eq("nothing ever rides forward in this mode", r3.carry, 0);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
