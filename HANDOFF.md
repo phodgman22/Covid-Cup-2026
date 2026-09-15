@@ -92,15 +92,16 @@ look; recolored to `--navy` — reads as "different mode," not "something's wron
 
 **Needs-review highlighting.** Every genuine either/or default in Event and each round —
 handicap allowance and its basis, team handicap mode, net/gross, stroke/match, the format
-card grid, maximum score, and (when skins is on) its own net/gross, team/individual, and
-carry-over — gets a loud amber alert treatment (`.needs-review`): cream-gold fill, a pulsing
-amber ring, and a small "NEEDS REVIEW" tag (the tag is skipped on `.seg-admin` toggles, which
-clip it via their own `overflow:hidden`; the pulsing ring alone carries those) — until it's
-been interacted with *this session*. **Any interaction confirms it, even one that leaves the
-default in place** — deliberate, so a commissioner who's fine with the default has a way to
-say so without being forced to bounce the value away and back. For the toggle-button fields
-(net/gross, stroke/match, the format cards, skins net/gross/unit/carry) a click always
-confirms, even a click that re-picks the value already showing. For the select/input fields
+card grid, maximum score, max handicap strokes, and (when skins is on) its own net/gross,
+team/individual, and carry-over — gets a loud amber alert treatment (`.needs-review`):
+cream-gold fill, a pulsing amber ring, and a small "NEEDS REVIEW" tag (the tag is skipped on
+`.seg-admin` toggles, which clip it via their own `overflow:hidden`; the pulsing ring alone
+carries those) — until it's been interacted with *this session*. **Any interaction confirms
+it, even one that leaves the default in place** — deliberate, so a commissioner who's fine
+with the default has a way to say so without being forced to bounce the value away and back.
+For the toggle-button fields (net/gross, stroke/match, the format cards, skins
+net/gross/unit/carry, max handicap strokes no-max/cap) a click always confirms, even a click
+that re-picks the value already showing. For the select/input fields
 (handicap allowance %, allowance basis, team handicap mode, max score) a `click` listener
 confirms the same way *in addition to* the existing `input`/`change` listener that updates
 the stored value — needed because a native `<select>` fires no event at all when you open it,
@@ -200,7 +201,27 @@ stats add holes won, halved and lost, credited to every player on the side.
 - **Team handicaps** (net scramble / alternate shot only) are a separate choice: `formula` or
   `off-lowest` (every team drops by the lowest team's). The formula weightings are editable in
   the console (`event.teamWeights`), ranked lowest handicap to highest; defaults are 35/15 for a
-  pair, 20/15/10 for three, 25/20/15/10 for four, and alternate shot is 50% of combined.
+  pair, 20/15/10 for three, 25/20/15/10 for four, and alternate shot is 50% of combined. **The
+  weight editor lives inside each round's own card now**, in the Handicap step between Format
+  and Maximum score per hole, and only appears for that round's format when it actually uses a
+  team handicap (`f.teamHcp`) — it used to be one global card near the top of the page listing
+  every format used anywhere in the event, moved down and scoped to `weightsSectionHtml(r.format)`
+  per round. The underlying data is still shared at the event level
+  (`event.teamWeights[format][size]`), so two rounds playing the same format edit and see the
+  same table; "Reset to standard" only clears that one format's override
+  (`delete event.teamWeights[fmt]`), not every format's.
+- **Max handicap strokes is a per-round cap** (`round.maxHcpStrokes`, undefined/null/`""` means
+  no cap) — "No max" / "Cap at" toggle right above the weighting editor in the Handicap step, for
+  every non-gross format (gross formats have no handicaps to cap, so the whole Handicap step is
+  hidden when `f.gross`). `playingHandicaps()` in scoring.js clamps each player's course handicap
+  to this cap **before** allowance mode's off-the-low-man subtraction runs, so the cap always
+  means "nobody's course handicap counts for more than this," independent of how strokes get
+  redistributed afterward. It flows into team handicaps for free since `teamHandicapFormula()`
+  takes the already-capped player handicaps as its input — no separate team-side cap needed.
+  `gameHandicaps()` threads it through as `maxStrokes` on both the stroke-play and match-play
+  branches (match play computes one `full` set of handicaps up front, so capping there covers
+  both). Both admin.html's `roundHandicaps()` and index.html's `roundContext()` pass
+  `round.maxHcpStrokes` through the same way as every other handicap setting.
 - **Maximum score is set per round** (`round.maxScore`, plus `round.maxPlus` for
   "par-plus"): double par (the default), net double bogey, triple bogey, par plus N, or
   none. Every rule resolves to a *gross* cap for one player on one hole — see `grossCap()`.
@@ -227,8 +248,8 @@ on every course. A player who plays different tees on different courses isn't su
                             holes: [{number, par, si}], tees: [{name, rating, slope, yards}] } }
   /roster   { <playerId>: { name, index, tee, email, code, commissioner? } }
   /rounds   { <roundId>: { name, courseId, format, play, order, maxScore, maxPlus?,
-                           ctpOn, ctpHoles, ldOn, ldHoles,
-                           skinsOn?, skinsGross?, skinsUnit? } }
+                           maxHcpStrokes?, ctpOn, ctpHoles, ldOn, ldHoles,
+                           skinsOn?, skinsGross?, skinsUnit?, skinsCarry? } }
   /groups   { <roundId>: { <teamId>: { name, playerIds: [...] } } }    teams (team formats)
   /teeTimes { <roundId>: { <teeTimeId>: { start, unitIds: [...] } } }  who goes out together
   /matches  { <roundId>: { <matchId>: { unitIds: [a, b] } } }          match play only

@@ -25,6 +25,17 @@ eq("stroke, off the low man in the field (e, 1)",
    S.gameHandicaps({ ...base, play: "stroke", allowanceMode: "off-lowest" }).playerPhs,
    { a: 3, b: 9, c: 17, d: 19, e: 0, f: 1 });
 
+console.log("\ngameHandicaps — maxStrokes cap");
+eq("stroke, full, capped at 15: only c and d (18, 20) get clamped",
+   S.gameHandicaps({ ...base, play: "stroke", allowanceMode: "full", maxStrokes: 15 }).playerPhs,
+   { a: 4, b: 10, c: 15, d: 15, e: 1, f: 2 });
+eq("match, full, cap applies the same as stroke play (same playingHandicaps call underneath)",
+   S.gameHandicaps({ ...base, play: "match", allowanceMode: "full", maxStrokes: 15, matches: t1vt2 }).playerPhs,
+   { a: 4, b: 10, c: 15, d: 15, e: 1, f: 2 });
+eq("no maxStrokes given behaves exactly like before",
+   S.gameHandicaps({ ...base, play: "stroke", allowanceMode: "full" }).playerPhs,
+   { a: 4, b: 10, c: 18, d: 20, e: 1, f: 2 });
+
 console.log("\ngameHandicaps — match play plays off the low man in each match");
 eq("match, off the low man in t1 v t2 (a, 4); e and f aren't in a match",
    S.gameHandicaps({ ...base, play: "match", allowanceMode: "off-lowest", matches: t1vt2 }).playerPhs,

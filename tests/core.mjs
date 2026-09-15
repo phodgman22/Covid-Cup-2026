@@ -40,6 +40,16 @@ const offLow = S.playingHandicaps(roster, course, { allowancePct: 100, allowance
 eq("off-lowest: best plays scratch", offLow.a, 0);
 eq("off-lowest preserves gaps", offLow.b - offLow.a, full100.b - full100.a);
 
+console.log("\nplayingHandicaps: maxStrokes cap");
+const capped = S.playingHandicaps(roster, course, { allowancePct: 100, allowanceMode: "full", maxStrokes: 20 });
+eq("under the cap: unchanged", capped.a, full100.a);
+eq("under the cap: unchanged", capped.b, full100.b);
+eq("over the cap: clamped to 20", capped.c, 20);
+const cappedOffLow = S.playingHandicaps(roster, course, { allowancePct: 100, allowanceMode: "off-lowest", maxStrokes: 20 });
+eq("cap applies before off-lowest subtracts", cappedOffLow.c, 20 - full100.a);
+eq("no cap when maxStrokes is empty string (UI's 'no max')", S.playingHandicaps(roster, course, { allowancePct: 100, allowanceMode: "full", maxStrokes: "" }).c, full100.c);
+eq("no cap when maxStrokes is null", S.playingHandicaps(roster, course, { allowancePct: 100, allowanceMode: "full", maxStrokes: null }).c, full100.c);
+
 console.log("\nteam handicap formulas");
 eq("scramble 2 (35/15) of [10,20]", S.teamHandicapFormula("scramble", [10, 20]), Math.round(0.35*10 + 0.15*20));
 eq("scramble 4 (25/20/15/10)", S.teamHandicapFormula("scramble", [4, 8, 12, 20]), Math.round(0.25*4 + 0.20*8 + 0.15*12 + 0.10*20));

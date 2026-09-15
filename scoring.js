@@ -67,15 +67,22 @@ export function courseHandicap(index, tee, par){
  *   "full"       — each player plays off his own allowance-adjusted course handicap
  *   "off-lowest" — the same, then everyone drops by the lowest in the field, so the
  *                  best player plays off scratch and everyone else off the difference
+ *
+ * maxStrokes caps each player's course handicap before allowanceMode is applied — a null
+ * or undefined maxStrokes means no cap. Capping first (rather than after off-lowest) keeps
+ * the cap meaning "nobody's course handicap counts for more than this," independent of how
+ * the field's strokes get redistributed afterward.
  */
-export function playingHandicaps(roster, course, { allowancePct = 100, allowanceMode = "full" } = {}){
+export function playingHandicaps(roster, course, { allowancePct = 100, allowanceMode = "full", maxStrokes } = {}){
   const par = coursePar(course.holes);
   const teeByName = new Map((course.tees || []).map(t => [t.name, t]));
   const pct = allowancePct / 100;
+  const cap = maxStrokes == null || maxStrokes === "" ? null : +maxStrokes;
 
   const out = {};
   Object.entries(roster || {}).forEach(([id, p]) => {
-    out[id] = Math.round(courseHandicap(p.index, teeByName.get(p.tee), par) * pct);
+    const raw = Math.round(courseHandicap(p.index, teeByName.get(p.tee), par) * pct);
+    out[id] = cap != null ? Math.min(raw, cap) : raw;
   });
 
   if (allowanceMode === "off-lowest"){
@@ -154,7 +161,7 @@ export function teamHandicaps(format, groups, playerPhs, mode = "formula", table
  */
 export function gameHandicaps({ roster = {}, course, format, play = "stroke", allowancePct = 100,
                                 allowanceMode = "full", teamHcpMode = "formula", teamWeights,
-                                units = {}, matches = [] } = {}){
+                                maxStrokes, units = {}, matches = [] } = {}){
   const f = FORMATS[format] || FORMATS[DEFAULT_FORMAT];
   const playerPhs = {};
   const teamPhs = {};
@@ -166,12 +173,12 @@ export function gameHandicaps({ roster = {}, course, format, play = "stroke", al
   }
 
   if (play !== "match"){
-    Object.assign(playerPhs, playingHandicaps(roster, course, { allowancePct, allowanceMode }));
+    Object.assign(playerPhs, playingHandicaps(roster, course, { allowancePct, allowanceMode, maxStrokes }));
     if (f.teamHcp) Object.assign(teamPhs, teamHandicaps(format, units, playerPhs, teamHcpMode, teamWeights));
     return { playerPhs, teamPhs };
   }
 
-  const full = playingHandicaps(roster, course, { allowancePct, allowanceMode: "full" });
+  const full = playingHandicaps(roster, course, { allowancePct, allowanceMode: "full", maxStrokes });
   Object.assign(playerPhs, full);
   const baseTeam = f.teamHcp ? teamHandicaps(format, units, full, "formula", teamWeights) : {};
   Object.assign(teamPhs, baseTeam);

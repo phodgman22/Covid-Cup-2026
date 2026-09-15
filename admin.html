@@ -207,18 +207,6 @@ select.needs-review,input.needs-review{border-radius:6px;}
       aren't used. Handicap indexes stay on the roster in case you switch to net.</p>
   </div>
 
-  <div class="card" id="weightsCard">
-    <h2>Team handicap weightings</h2>
-    <p>For the formats that play one ball per team. Each row is a group size, and the
-      boxes run from the <b>lowest handicap in the group</b> to the highest &mdash; so
-      &ldquo;35 / 15&rdquo; means 35% of the low man plus 15% of the high man.</p>
-    <div id="weightEditor"></div>
-    <p class="hint">Only used by Scramble and Alternate shot. Every other format uses each
-      player's own handicap, so there's nothing to weight. Group sizes above four fall back
-      to an even split.</p>
-    <button id="resetWeightsBtn">Reset to standard</button>
-  </div>
-
   <div class="card">
     <h2>Spreadsheet setup</h2>
     <p>Faster than typing 18 holes by hand. Download the template, fill it in Excel,
@@ -642,6 +630,25 @@ function renderRounds(){
       </div>
       <p class="hint" style="margin:8px 0 12px;">${formatSummary(r)}</p>
 
+      ${f.gross ? "" : (() => {
+        const hasHcpCap = r.maxHcpStrokes != null && r.maxHcpStrokes !== "";
+        return `<h3 class="step">Handicap</h3>
+        <div class="row" style="align-items:flex-end;">
+          <div class="seg-admin ${isPending("maxHcp", id) ? "needs-review" : ""}">
+            <button type="button" data-set-maxhcp="0" class="${hasHcpCap ? "" : "active"}">No max</button>
+            <button type="button" data-set-maxhcp="1" class="${hasHcpCap ? "active" : ""}">Cap at</button>
+          </div>
+          ${hasHcpCap ? `<div style="flex:0 0 110px;">
+            <label>Max strokes</label>
+            <input type="number" min="0" max="54" data-rf="maxHcpStrokes" value="${esc(r.maxHcpStrokes)}">
+          </div>` : ""}
+        </div>
+        <p class="hint" style="margin:4px 0 12px;">${hasHcpCap
+          ? "Caps every player&rsquo;s course handicap before any allowance or off-the-low-man adjustment &mdash; nobody plays off more than this, however high their index runs."
+          : "No ceiling on course handicap &mdash; every player plays off his full index (after the event&rsquo;s allowance)."}</p>
+        ${f.teamHcp ? weightsSectionHtml(r.format) : ""}`;
+      })()}
+
       <div class="row">
         <div>
           <label>Maximum score per hole</label>
@@ -719,7 +726,10 @@ function renderRounds(){
       r[rf] = inp.type === "checkbox" ? inp.checked : inp.value;
       if (rf === "maxScore") confirmField("maxScore", id);
       // Free-typed fields keep focus; anything that changes the card's shape re-renders it.
-      if (["name", "maxPlus", "ctpHoles", "ldHoles"].includes(rf)) return;
+      if (["name", "maxPlus", "ctpHoles", "ldHoles", "maxHcpStrokes"].includes(rf)){
+        if (rf === "maxHcpStrokes") renderRoster();
+        return;
+      }
       renderRounds();
       if (rf === "courseId") renderRoster();
     }));
@@ -734,7 +744,7 @@ function renderRounds(){
     const setFormat = next => {
       r.format = next;
       confirmField("format", id);
-      renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
+      renderRounds(); renderRoster(); renderHandicapSections();
     };
     box.querySelectorAll("[data-set-gross]").forEach(btn => btn.addEventListener("click", () =>
       setFormat(formatFor(current.family, btn.dataset.setGross === "1"))));
@@ -760,13 +770,20 @@ function renderRounds(){
       confirmField("skinsUnit", id);
       renderRounds();
     }));
+    box.querySelectorAll("[data-set-maxhcp]").forEach(btn => btn.addEventListener("click", () => {
+      const on = btn.dataset.setMaxhcp === "1";
+      r.maxHcpStrokes = on ? (r.maxHcpStrokes ?? 18) : null;
+      confirmField("maxHcp", id);
+      renderRounds(); renderRoster();
+    }));
+    wireWeightsSection(box);
 
     box.querySelector("[data-del-round]").addEventListener("click", () => {
       delete state.rounds[id];
       delete state.groups[id];
       delete state.teeTimes[id];
       delete state.matches[id];
-      renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
+      renderRounds(); renderRoster(); renderHandicapSections();
     });
   });
 
@@ -804,6 +821,7 @@ function roundHandicaps(roundId){
     roster: state.roster, course, format: formatOf(r, state.event), play: r.play,
     allowancePct: state.event.allowancePct, allowanceMode: state.event.allowanceMode,
     teamHcpMode: state.event.teamHcpMode, teamWeights: state.event.teamWeights,
+    maxStrokes: r.maxHcpStrokes,
     units: unitsForAdmin(roundId),
     matches: Object.values(state.matches[roundId] || {})
   });
@@ -1059,7 +1077,6 @@ function renderRoundSetup(roundId, wrap){
 
 /* ---------- team handicap weightings ---------- */
 
-const WEIGHT_FORMATS = Object.entries(FORMATS).filter(([, f]) => f.teamHcp).map(([key]) => key);
 const WEIGHT_SIZES = [2, 3, 4];
 const RANK_LABELS = ["Lowest", "2nd", "3rd", "Highest"];
 
@@ -1069,11 +1086,16 @@ function rankLabel(i, size){
   return RANK_LABELS[i] || `#${i + 1}`;
 }
 
-function renderWeights(){
-  const wrap = document.getElementById("weightEditor");
-  wrap.innerHTML = WEIGHT_FORMATS.filter(fmt => usedFormats().includes(fmt)).map(fmt => `
+// Markup for one format's weight editor, embedded in that format's round card(s). The
+// underlying data (state.event.teamWeights[fmt]) is still shared at the event level, so two
+// rounds both playing scramble edit and see the same table — only where it's shown moved.
+function weightsSectionHtml(fmt){
+  return `<h3 class="step">Team handicap weighting <span class="hint">&mdash; ${esc(FORMATS[fmt]?.label || fmt)}</span></h3>
     <div class="sub-card" data-wfmt="${fmt}">
-      <h3>${esc(FORMATS[fmt].label)}</h3>
+      <p class="hint" style="margin-top:0;">Each row is a group size, and the boxes run from the
+        <b>lowest handicap in the group</b> to the highest &mdash; so &ldquo;35 / 15&rdquo; means
+        35% of the low man plus 15% of the high man. Shared with every other round playing this
+        same format.</p>
       ${WEIGHT_SIZES.map(size => {
         const w = weightsFor(fmt, size, state.event.teamWeights) || [];
         const total = w.reduce((a, b) => a + (+b || 0), 0);
@@ -1090,11 +1112,15 @@ function renderWeights(){
           </div>
         </div>`;
       }).join("")}
-    </div>`).join("");
+      <p class="hint">Group sizes above four fall back to an even split.</p>
+      <button type="button" data-reset-weights="${fmt}">Reset to standard</button>
+    </div>`;
+}
 
-  wrap.querySelectorAll("[data-wfmt]").forEach(box => {
-    const fmt = box.dataset.wfmt;
-    box.querySelectorAll("[data-wsize]").forEach(row => {
+function wireWeightsSection(box){
+  box.querySelectorAll("[data-wfmt]").forEach(wbox => {
+    const fmt = wbox.dataset.wfmt;
+    wbox.querySelectorAll("[data-wsize]").forEach(row => {
       const size = +row.dataset.wsize;
       row.querySelectorAll("[data-wi]").forEach(inp => inp.addEventListener("input", () => {
         state.event.teamWeights = state.event.teamWeights || {};
@@ -1108,13 +1134,12 @@ function renderWeights(){
         row.querySelector(".hint").textContent = `totals ${total}%`;
       }));
     });
+    wbox.querySelector("[data-reset-weights]")?.addEventListener("click", () => {
+      if (state.event.teamWeights) delete state.event.teamWeights[fmt];
+      renderRounds(); renderRoster();
+    });
   });
 }
-
-document.getElementById("resetWeightsBtn").addEventListener("click", () => {
-  delete state.event.teamWeights;
-  renderWeights();
-});
 
 /* ---------- format and handicap sections ---------- */
 
@@ -1151,7 +1176,6 @@ function renderHandicapSections(){
   document.getElementById("hcpHint").classList.toggle("hidden", !anyNet);
   document.getElementById("grossNote").classList.toggle("hidden", anyNet);
   document.getElementById("teamHcpField").classList.toggle("hidden", !anyTeamBall);
-  document.getElementById("weightsCard").classList.toggle("hidden", !anyTeamBall);
 }
 
 // A default value nobody's confirmed yet THIS session — resets on every load, on purpose,
@@ -1164,7 +1188,7 @@ const reviewKey = (kind, roundId) => roundId ? `${kind}:${roundId}` : kind;
 const isPending = (kind, roundId) => pendingReview.has(reviewKey(kind, roundId));
 function confirmField(kind, roundId){ pendingReview.delete(reviewKey(kind, roundId)); }
 function seedRoundReview(roundId){
-  ["format", "play", "maxScore", "skinsGross", "skinsUnit", "skinsCarry"].forEach(k => pendingReview.add(reviewKey(k, roundId)));
+  ["format", "play", "maxScore", "maxHcp", "skinsGross", "skinsUnit", "skinsCarry"].forEach(k => pendingReview.add(reviewKey(k, roundId)));
 }
 function seedPendingReview(){
   pendingReview.clear();
@@ -1184,7 +1208,7 @@ function renderEvent(){
 
 function renderAll(){
   normaliseFormats();
-  renderHandicapSections(); renderEvent(); renderWeights(); renderCourses(); renderPlayerTeeOptions();
+  renderHandicapSections(); renderEvent(); renderCourses(); renderPlayerTeeOptions();
   renderRoster(); renderRounds();
 }
 
@@ -1236,7 +1260,7 @@ document.getElementById("addRoundBtn").addEventListener("click", () => {
     order: Object.keys(state.rounds).length
   };
   seedRoundReview(id);
-  renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
+  renderRounds(); renderRoster(); renderHandicapSections();
 });
 
 document.getElementById("addPlayerBtn").addEventListener("click", () => {
