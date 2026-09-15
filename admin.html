@@ -723,6 +723,12 @@ function renderRounds(){
       renderRounds();
       if (rf === "courseId") renderRoster();
     }));
+    // A click into the maxScore select counts as "looked at it" even if the commissioner
+    // backs out and keeps the default — same as clicking an already-active toggle button.
+    box.querySelectorAll('select[data-rf="maxScore"]').forEach(sel => sel.addEventListener("click", () => {
+      confirmField("maxScore", id);
+      sel.classList.remove("needs-review");
+    }));
 
     const current = FORMATS[r.format] || FORMATS[DEFAULT_FORMAT];
     const setFormat = next => {
@@ -1186,15 +1192,26 @@ function renderAll(){
 /* ---------- wiring ---------- */
 
 document.getElementById("eventName").addEventListener("input", e => state.event.name = e.target.value);
+// A click into the field counts as "looked at it" even if the commissioner backs out and
+// keeps the default — same as clicking a toggle button that's already the active choice.
+document.getElementById("allowancePct").addEventListener("click", e => {
+  confirmField("allowancePct"); e.target.classList.remove("needs-review");
+});
 document.getElementById("allowancePct").addEventListener("input", e => {
   state.event.allowancePct = +e.target.value;
   confirmField("allowancePct"); e.target.classList.remove("needs-review");
   renderRoster();
 });
+document.getElementById("allowanceMode").addEventListener("click", e => {
+  confirmField("allowanceMode"); e.target.classList.remove("needs-review");
+});
 document.getElementById("allowanceMode").addEventListener("change", e => {
   state.event.allowanceMode = e.target.value;
   confirmField("allowanceMode"); e.target.classList.remove("needs-review");
   renderRoster(); renderRounds();
+});
+document.getElementById("teamHcpMode").addEventListener("click", e => {
+  confirmField("teamHcpMode"); e.target.classList.remove("needs-review");
 });
 document.getElementById("teamHcpMode").addEventListener("change", e => {
   state.event.teamHcpMode = e.target.value;
