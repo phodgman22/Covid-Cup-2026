@@ -10,30 +10,38 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Pirata+One&display=swap" rel="stylesheet">
 <style>
+/* Same clubhouse paper the leaderboard has always used, and admin.html now shares too —
+   cream stock, blackletter title, Georgia small-caps structure, so the whole product
+   reads as one thing instead of a dark app with one cream tab bolted on. */
 :root{
-  --bg:#0a1830; --surface:#0f2038; --surface2:#122845; --surface3:#173058;
-  --line:#28405f; --text:#f0f3f8; --muted:#9fb0c9; --dim:#7288a6;
-  --accent:#c7a34d; --accent-dim:#3a3320; --danger:#c8102e; --ok:#3fae6b;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --bg:#e4d9ba; --surface:#f4ecd8; --surface2:#fbf7ec; --surface3:#e3d6ad;
+  --line:#a9bba9; --text:#161616; --muted:#4a6b55; --dim:#7d9184;
+  --accent:#2e6a3b; --accent-dim:#dce8de; --danger:#a8231f; --ok:#2e6a3b;
+  --navy:#1f3a78;
+  font-family:Georgia,"Times New Roman",serif;
 }
 *{box-sizing:border-box;}
 body{margin:0;background:var(--bg);color:var(--text);padding-bottom:40px;}
-h1{font-size:19px;margin:0;}
-h2{font-size:14px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;}
+h1{font-family:"Pirata One",Georgia,"Times New Roman",serif;font-size:24px;margin:0;
+  font-weight:400;color:var(--navy);letter-spacing:.03em;}
+h2{font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;
+  font-weight:700;margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px;}
 p{color:var(--muted);font-size:14px;margin:0 0 12px;}
 header{padding:14px 16px;border-bottom:1px solid var(--line);background:var(--bg);}
-header .sub{font-size:12px;color:var(--dim);margin-top:3px;}
+header .sub{font-family:"Kalam","Segoe Print","Bradley Hand",cursive;font-size:13px;color:var(--dim);margin-top:3px;}
 nav.tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5;}
 nav.tabs button{flex:1;background:none;border:none;color:var(--dim);padding:12px 4px;font-size:13px;
-  cursor:pointer;border-bottom:2px solid transparent;}
+  cursor:pointer;border-bottom:2px solid transparent;font-family:Georgia,"Times New Roman",serif;}
 nav.tabs button.active{color:var(--accent);border-bottom-color:var(--accent);}
 main{max-width:720px;margin:0 auto;padding:16px;}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;margin-bottom:14px;
+  background-image:radial-gradient(ellipse at 30% 8%, rgba(255,255,255,.5), rgba(255,255,255,0) 55%);
+  box-shadow:inset 0 0 0 1px #e9dfc0, 0 3px 12px rgba(40,30,10,.1);}
 .empty{color:var(--dim);font-size:14px;}
 select{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);
-  border-radius:8px;padding:9px 10px;font-size:14px;margin-bottom:12px;}
-button.primary{background:var(--accent);border:1px solid var(--accent);color:#241d08;font-weight:600;
-  border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer;}
+  border-radius:5px;padding:9px 10px;font-size:14px;margin-bottom:12px;font-family:Georgia,"Times New Roman",serif;}
+button.primary{background:var(--accent);border:1px solid var(--accent);color:var(--surface);font-weight:700;
+  border-radius:5px;padding:10px 16px;font-size:14px;cursor:pointer;font-family:Georgia,"Times New Roman",serif;}
 button.link{background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:2px 4px;}
 .stats{display:flex;gap:18px;font-size:13px;color:var(--muted);}
 .pairing{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;}
@@ -74,17 +82,16 @@ button.link{background:none;border:none;color:var(--accent);cursor:pointer;font-
 .nav-holes button{flex:1;padding:12px;background:var(--surface3);border:1px solid var(--line);
   color:var(--text);border-radius:8px;font-size:14px;cursor:pointer;}
 .nav-holes button:disabled{opacity:.35;cursor:default;}
-.nav-holes button.primary{background:var(--accent);border-color:var(--accent);color:#241d08;font-weight:600;}
+.nav-holes button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:700;}
 
-/* The scorecard sits on eggshell stock, like the Michigan app, so scores read clearly
-   outdoors. Redefining the palette on the card flips everything inside it at once. */
+/* The scorecard reads as its own crisp white card on the page — the "fill this in"
+   surface — rather than a full palette swap now that the whole app is on the same
+   cream stock. Just a whiter surface and a firmer shadow, everything else inherited. */
 #tab-score .card{
-  --surface:#fbf8f1; --surface2:#ffffff; --surface3:#f1ece0; --line:#d9d1bf;
-  --text:#1c2330; --muted:#556070; --dim:#7b8390; --accent:#8d6b1d; --accent-dim:#f1e5c2;
-  background:var(--surface); color:var(--text); border-color:#e3dac6;
-  box-shadow:0 10px 24px rgba(0,0,0,.28);
+  --surface:#ffffff; --surface2:#ffffff; --surface3:var(--accent-dim);
+  background:var(--surface); box-shadow:0 10px 24px rgba(40,30,10,.16);
 }
-#tab-score .nav-holes button.primary{background:#1c2330;border-color:#1c2330;color:#fff;}
+#tab-score .nav-holes button.primary{background:var(--navy);border-color:var(--navy);color:var(--surface);}
 #tab-score .nav-holes button:disabled{opacity:.3;}
 .strip button{position:relative;}
 .strip button.ahead{opacity:.45;}
@@ -111,25 +118,25 @@ table.lboard tr.lb-open{cursor:pointer;}
 table.lboard tr.lb-open:hover td{background:rgba(46,106,59,.07);}
 table.lboard td.nm.lead{background:rgba(192,39,45,.07);}
 table.lboard td.mstatus{font-size:19px;white-space:nowrap;}
-/* scorecard pop-up, on the same eggshell stock as the scorecard */
+/* scorecard pop-up, the same crisp white "fill this in" card as the scorecard itself */
 .modal{position:fixed;inset:0;background:rgba(5,10,20,.72);z-index:30;display:flex;align-items:flex-start;
   justify-content:center;padding:28px 10px;overflow-y:auto;}
-.modal-box{position:relative;width:100%;max-width:760px;border-radius:12px;padding:18px 14px 14px;
-  --surface:#fbf8f1; --surface2:#ffffff; --surface3:#f1ece0; --line:#d9d1bf;
-  --text:#1c2330; --muted:#556070; --dim:#7b8390; --accent:#8d6b1d; --accent-dim:#f1e5c2;
+.modal-box{position:relative;width:100%;max-width:760px;border-radius:8px;padding:18px 14px 14px;
+  --surface:#ffffff; --surface2:#ffffff; --surface3:var(--accent-dim);
   background:var(--surface);color:var(--text);box-shadow:0 18px 40px rgba(0,0,0,.45);}
 .modal-box h3{margin:6px 34px 8px 0;font-size:16px;}
 .modal-box .modal-card + h3{margin-top:22px;}
-.modal-x{position:absolute;top:6px;right:10px;background:none;border:none;font-size:28px;line-height:1;color:#556070;cursor:pointer;}
-.modal-edit{margin:0 0 10px;background:#1c2330;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;}
-.modal-status{font-size:12px;color:#2e6a3b;margin:-4px 0 8px;}
-/* commissioner mode */
-.adminbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 16px;background:#3a2410;
-  border-bottom:1px solid #6b4a1c;color:#e8c98a;font-size:13px;}
+.modal-x{position:absolute;top:6px;right:10px;background:none;border:none;font-size:28px;line-height:1;color:var(--dim);cursor:pointer;}
+.modal-edit{margin:0 0 10px;background:var(--navy);color:var(--surface);border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;}
+.modal-status{font-size:12px;color:var(--accent);margin:-4px 0 8px;}
+/* commissioner mode — navy, like the title and the primary actions, so it reads as
+   "you're in a different mode" rather than a warning. */
+.adminbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 16px;background:var(--navy);
+  border-bottom:1px solid var(--navy);color:#dfe6f2;font-size:13px;}
 .adminbar b{letter-spacing:.06em;text-transform:uppercase;font-size:11px;}
 .adminbar label{display:flex;gap:6px;align-items:center;}
-.adminbar select{width:auto;max-width:170px;margin:0;padding:5px 8px;font-size:13px;background:#241708;border-color:#6b4a1c;color:#f3dfae;}
-.adminbar a,.adminbar button{color:#f3dfae;background:none;border:1px solid #6b4a1c;border-radius:6px;padding:5px 10px;
+.adminbar select{width:auto;max-width:170px;margin:0;padding:5px 8px;font-size:13px;background:#16295a;border-color:#3f5590;color:#dfe6f2;}
+.adminbar a,.adminbar button{color:#dfe6f2;background:none;border:1px solid #3f5590;border-radius:6px;padding:5px 10px;
   font-size:12px;cursor:pointer;text-decoration:none;}
 #adminUnlock{display:flex;gap:8px;justify-content:center;margin-top:8px;}
 #adminUnlock input{width:120px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:6px;
@@ -138,12 +145,12 @@ table.lboard td.mstatus{font-size:19px;white-space:nowrap;}
 .attest-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0;
   background:var(--accent-dim);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);}
 .attest-banner.done{background:#e6f1e8;border-color:#2e6a3b;color:#1f4a29;}
-.attest-banner button{background:#1c2330;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+.attest-banner button{background:var(--navy);color:var(--surface);border:none;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;}
 .attest-banner button.ghost{background:none;color:inherit;border:1px solid currentColor;font-weight:400;}
 .attest-box{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;}
 .attest-box label{display:flex;gap:10px;align-items:flex-start;font-size:15px;color:var(--text);cursor:pointer;margin-bottom:12px;}
 .attest-box input[type=checkbox]{width:22px;height:22px;margin:0;flex:0 0 auto;}
-.attest-box .submit{width:100%;background:#1c2330;color:#fff;border:none;border-radius:8px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;}
+.attest-box .submit{width:100%;background:var(--navy);color:var(--surface);border:none;border-radius:6px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;}
 .attest-box .submit:disabled{opacity:.35;cursor:default;}
 .attest-note{font-size:12px;color:var(--dim);margin:8px 0 0;}
 .review-actions{display:flex;gap:10px;margin-top:14px;}

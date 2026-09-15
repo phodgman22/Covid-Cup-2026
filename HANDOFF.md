@@ -69,17 +69,27 @@ No bundler, no framework:
   `file://`.
 - **`tests/`** — the scoring test suite. See Testing below.
 
-## Admin console design
+## Design
 
-admin.html shares the player app's clubhouse look — cream stock (`--bg`/`--surface`/etc.
-redefined to the same palette the leaderboard uses), Pirata One for the page title, Georgia
-small-caps for section headings, Kalam reserved for status text and the PIN screen's
-subtitle, same as the leaderboard keeps it off the dense functional copy. It's the same CSS
-custom-property structure as before (`--bg`, `--surface`, `--accent`, etc.) with new values,
-so this re-themed the whole console by editing `:root` plus a handful of colors that were
-hardcoded instead of using a variable (button text on `--accent`, the zebra-stripe tint, the
-Firebase-not-connected banner) — worth remembering if either page's palette moves again:
-check for hardcoded colors before assuming the CSS variables alone will catch everything.
+Both pages now share one clubhouse look — cream stock, Pirata One for page titles, Georgia
+small-caps for section headings, Kalam reserved for status text and subtitles, same as the
+leaderboard always kept it off the dense functional copy. Same CSS custom-property structure
+throughout (`--bg`, `--surface`, `--accent`, `--navy`, etc.) with the same values in both
+files, so re-theming either one is `:root` plus a sweep for colors that got hardcoded instead
+of using a variable — button text on `--accent`, zebra-stripe tints, warning/status banners.
+Check for those before assuming the variables alone will catch everything if this moves again.
+
+**index.html used to be the odd one out** — a dark navy/gold app with one cream tab (the
+leaderboard) that deliberately didn't follow it. Re-theming `:root` to cream made the
+leaderboard finally match its surroundings instead of standing out, but three other spots
+had their own separate hardcoded palettes that needed reconciling by hand: the scorecard
+card and its pop-up (`#tab-score .card`, `.modal-box`) used to fully swap to a distinct
+"eggshell stock" palette so a light card would read against the old dark app — now the whole
+app is that color, so they just set `--surface:#ffffff` for a crisp "fill this in" surface a
+shade whiter than the page, keeping everything else (accent, borders) inherited and
+consistent. The commissioner-mode bar (`.adminbar`) was a hardcoded dark amber "warning"
+look; recolored to `--navy` — reads as "different mode," not "something's wrong," and matches
+the same navy used for the page title and admin.html's needs-review ring.
 
 **Needs-review highlighting.** Every genuine either/or default in Event and each round —
 handicap allowance and its basis, team handicap mode, net/gross, stroke/match, the format
