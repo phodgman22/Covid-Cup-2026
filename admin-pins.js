@@ -5,7 +5,7 @@
 // These are plain text in public source, same as the Firebase config — a "keep casual
 // players out" gate, not real security.
 
-export const ADMIN_PIN = "8E707C6A"; // change this, and tell the commissioner the new value
+export const ADMIN_PIN = "CUP2026"; // change this, and tell the commissioner the new value
 
 // Short codes so Andrew and Pat can get in fast while building.
 // REMOVE BEFORE THE EVENT — these are guessable without viewing source, and anyone who
