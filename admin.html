@@ -725,10 +725,9 @@ function renderRounds(){
     }));
 
     const current = FORMATS[r.format] || FORMATS[DEFAULT_FORMAT];
-    const currentFormatKey = r.format || DEFAULT_FORMAT;
     const setFormat = next => {
-      if (next !== currentFormatKey) confirmField("format", id);
       r.format = next;
+      confirmField("format", id);
       renderRounds(); renderRoster(); renderHandicapSections(); renderWeights();
     };
     box.querySelectorAll("[data-set-gross]").forEach(btn => btn.addEventListener("click", () =>
@@ -736,27 +735,23 @@ function renderRounds(){
     box.querySelectorAll("[data-set-family]").forEach(btn => btn.addEventListener("click", () =>
       setFormat(formatFor(btn.dataset.setFamily, current.gross))));
     box.querySelectorAll("[data-set-play]").forEach(btn => btn.addEventListener("click", () => {
-      const next = btn.dataset.setPlay;
-      if (next !== (r.play || "stroke")) confirmField("play", id);
-      r.play = next;
+      r.play = btn.dataset.setPlay;
+      confirmField("play", id);
       renderRounds(); renderRoster();
     }));
     box.querySelectorAll("[data-set-skins-gross]").forEach(btn => btn.addEventListener("click", () => {
-      const next = btn.dataset.setSkinsGross === "1";
-      if (next !== (r.skinsGross ?? true)) confirmField("skinsGross", id);
-      r.skinsGross = next;
+      r.skinsGross = btn.dataset.setSkinsGross === "1";
+      confirmField("skinsGross", id);
       renderRounds();
     }));
     box.querySelectorAll("[data-set-skins-carry]").forEach(btn => btn.addEventListener("click", () => {
-      const next = btn.dataset.setSkinsCarry === "1";
-      if (next !== (r.skinsCarry ?? true)) confirmField("skinsCarry", id);
-      r.skinsCarry = next;
+      r.skinsCarry = btn.dataset.setSkinsCarry === "1";
+      confirmField("skinsCarry", id);
       renderRounds();
     }));
     box.querySelectorAll("[data-set-skins-unit]").forEach(btn => btn.addEventListener("click", () => {
-      const next = btn.dataset.setSkinsUnit;
-      if (next !== (r.skinsUnit || "individual")) confirmField("skinsUnit", id);
-      r.skinsUnit = next;
+      r.skinsUnit = btn.dataset.setSkinsUnit;
+      confirmField("skinsUnit", id);
       renderRounds();
     }));
 
@@ -1597,9 +1592,7 @@ async function loadAll(){
 }
 
 document.getElementById("saveBtn").addEventListener("click", saveAll);
-document.getElementById("reloadBtn").addEventListener("click", () => {
-  if (confirm("Reload this console from the server? Any unsaved changes here will be lost.")) location.reload();
-});
+document.getElementById("reloadBtn").addEventListener("click", () => location.reload());
 
 /* ---------- PIN gate ---------- */
 

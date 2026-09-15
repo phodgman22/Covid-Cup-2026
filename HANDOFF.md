@@ -96,25 +96,20 @@ card grid, maximum score, and (when skins is on) its own net/gross, team/individ
 carry-over — gets a loud amber alert treatment (`.needs-review`): cream-gold fill, a pulsing
 amber ring, and a small "NEEDS REVIEW" tag (the tag is skipped on `.seg-admin` toggles, which
 clip it via their own `overflow:hidden`; the pulsing ring alone carries those) — until it's
-been genuinely **chosen** *this session*, meaning the value actually changed to something
-different from what it was. **Clicking a toggle button that's already the active/default
-value does NOT confirm it** — only picking a different option does; re-clicking the same
-option leaves the alert up. Each toggle's click handler compares the clicked value against
-the field's current value (falling back to the same default the button labels themselves use
-to decide "active") before calling `confirmField()`, so the comparison always matches what's
-visually shown as selected. This is `pendingReview`, a plain `Set` in admin.html — **never
-written to Firebase, and reseeded from scratch on every load** (`seedPendingReview()`, called
-right after `loadAll()` populates `state`). That's deliberate: it says "you haven't confirmed
-this yet this visit," not "this was never configured," so a returning commissioner
-re-confirming settings he already chose correctly isn't a bug, it's the point — same as
-re-initialing each section of a paper form rather than trusting a signature from last time. A
-freshly added round gets seeded the same way (`seedRoundReview()`, called from the
-"+ Add round" handler). Free-text fields (names, CTP/LD hole numbers) and the opt-in
-checkboxes themselves (Skins/CTP/LD on or off) are deliberately left out — an unchecked
-optional extra is a legitimate resting state, not a default waiting to be confirmed. Plain
-`<input>`/`<select>` fields (allowance %, allowance mode, team handicap mode, max score) don't
-need the same "already active" check — a real `input`/`change` event only fires when the
-value actually differs, so those were already correct.
+been interacted with *this session*. **Any click on a toggle confirms it, even a click that
+re-picks the value it was already showing** — deliberate, so a commissioner who's fine with
+the default has a way to say so without being forced to bounce the value away and back; it
+doesn't have to be a changed value, just a deliberate look-and-click. This is `pendingReview`,
+a plain `Set` in admin.html — **never written to Firebase, and reseeded from scratch on every
+load** (`seedPendingReview()`, called right after `loadAll()` populates `state`). That's
+deliberate: it says "you haven't looked at this yet this visit," not "this was never
+configured," so a returning commissioner re-confirming settings he already chose correctly
+isn't a bug, it's the point — same as re-initialing each section of a paper form rather than
+trusting a signature from last time. A freshly added round gets seeded the same way
+(`seedRoundReview()`, called from the "+ Add round" handler). Free-text fields (names, CTP/LD
+hole numbers) and the opt-in checkboxes themselves (Skins/CTP/LD on or off) are deliberately
+left out — an unchecked optional extra is a legitimate resting state, not a default waiting
+to be confirmed.
 
 ## Formats
 
