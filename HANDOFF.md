@@ -28,13 +28,14 @@ Two teams playing together are two teams in one tee time, and one phone keeps bo
 
 - Player view: https://phodgman22.github.io/Covid-Cup-2026/
 - Commissioner console: https://phodgman22.github.io/Covid-Cup-2026/admin.html
-  (codes are in `admin-pins.js` — `ADMIN_PIN` plus `DEV_PINS`. They're plain text in public
-  source, so this is a "keep casual players out" gate, not real security)
+  (the code is `ADMIN_PIN` in `admin-pins.js`. It's plain text in public source, so this is
+  a "keep casual players out" gate, not real security)
 
-> **Before the event: delete `DEV_PINS` in `admin-pins.js`.** `ADM1` and `ADM2` are short
-> codes added so Andrew and Pat could get in quickly while building. Unlike the real PIN
-> they're guessable without viewing source, and this console can rewrite the course, the
-> roster and every team. They are fine now and a liability on tournament day.
+`DEV_PINS` (`ADM1`, `ADM2` — short codes so Andrew and Pat could get in quickly while
+building) have been deleted now that the database is wiped and the app's been handed to a
+real commissioner. Unlike the real PIN they were guessable without viewing source, and this
+console can rewrite the course, the roster and every team — don't reintroduce a short
+"for building" code like that once an event is live.
 
 Once a code is accepted, commissioner access is remembered on that device (`covidcup_admin` in
 localStorage, shared by the console and the player app), so a refresh, or moving between the
